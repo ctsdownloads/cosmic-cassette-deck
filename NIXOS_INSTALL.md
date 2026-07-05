@@ -1,6 +1,6 @@
 # Installing on NixOS
 
-This builds the app as a Nix package and installs its launcher, so it appears in the COSMIC app library (and any freedesktop app menu) like any other application. It is a normal desktop app.
+This builds the app as a Nix package and installs its launcher, so it appears in the COSMIC app library (and any freedesktop app menu) like any other application.
 
 ## 1. Add it as a flake input
 
