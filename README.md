@@ -43,7 +43,7 @@ Five colour skins cycle from the Player with the Walkman button: the same photog
 
 You need the Rust toolchain plus a few system libraries, then a single `cargo` build. There are two ways to get that environment: a normal distro with rustup, or NixOS using the dev shell this repo ships. Both finish at the same build step.
 
-To instead install it as a system package on NixOS (no manual build), skip this section and follow [NIXOS_INSTALL.md](NIXOS_INSTALL.md).
+**If you run NixOS, you most likely want the packaged install rather than building by hand.** [NIXOS_INSTALL.md](NIXOS_INSTALL.md) walks through adding this repo to your own system flake so Nix builds and installs it as a normal package: it then shows up in the COSMIC app library (and any freedesktop app menu) as "Cassette Deck", launches like anything else, and persists across `nixos-rebuild`. That route needs no clone and no cargo. Use the steps below only if you specifically want to compile it yourself or hack on the source; they leave a binary inside your checkout, not a system-wide install.
 
 ### 1. Clone the repo
 
@@ -78,13 +78,13 @@ sudo pacman -S base-devel pkg-config alsa-lib wayland libxkbcommon vulkan-icd-lo
 
 Package names vary, but in all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, and a Vulkan driver plus loader. The app runs under Wayland, and wgpu needs a Vulkan-capable GPU. File dialogs use the XDG desktop portal through rfd; COSMIC already ships xdg-desktop-portal-cosmic, other desktops need their own portal backend.
 
-**On NixOS** - install nothing system-wide. The repo ships a dev shell (as both `flake.nix` and `shell.nix`) carrying the whole toolchain and libraries. Enter it:
+**On NixOS** - you don't install these libraries system-wide (that isn't how NixOS works). Instead, enter the dev shell this repo ships. It puts the full Rust toolchain and every library listed above onto your PATH for the life of that shell only, so nothing is written into your system configuration:
 
 ```sh
 nix develop        # flakes; or `nix-shell` on classic Nix
 ```
 
-Your shell prompt changes to show you are inside it. Run the next step from in there.
+Your shell prompt changes to show you are inside it; run step 3 from in there. Leaving the shell (Ctrl-D) takes the toolchain back out again, but the compiled binary under `target/release/` stays put.
 
 ### 3. Build and run
 
