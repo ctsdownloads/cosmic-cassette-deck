@@ -1,0 +1,12 @@
+# Rust
+/target
+
+# Nix
+/result
+/result-*
+.direnv/
+
+# Editor / OS
+*.swp
+*~
+.DS_Store

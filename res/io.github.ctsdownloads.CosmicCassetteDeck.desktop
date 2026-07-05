@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Cassette Deck
+GenericName=Cassette Player
+Comment=Photorealistic cassette player for local music
+Type=Application
+Exec=cosmic-cassette-deck
+Icon=io.github.ctsdownloads.CosmicCassetteDeck
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=cassette;music;player;tape;audio;
+StartupNotify=true

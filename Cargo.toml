@@ -1,0 +1,52 @@
+[package]
+name = "cosmic-cassette-deck"
+version = "0.2.0"
+edition = "2021"
+description = "Photoreal 80s cassette player for local MP3s, built on libcosmic"
+license = "GPL-3.0-only"
+
+
+[[bin]]
+name = "cosmic-cassette-deck"
+path = "src/main.rs"
+
+[dependencies]
+# libcosmic vendors its own iced fork with canvas + image support already
+# enabled internally — there are NO user-facing "canvas"/"image" features to
+# request (asking for them is a build error). Defaults cover winit, wayland,
+# tokio, a11y; we add the wgpu renderer. Pin a git rev once it builds.
+libcosmic = { git = "https://github.com/pop-os/libcosmic", features = ["wgpu"] }
+
+# Audio playback. 0.20 API: OutputStream::try_default + Sink::try_new +
+# get_pos/try_seek. (0.21 moved to OutputStreamBuilder — migrate deliberately.)
+rodio = { version = "0.20", default-features = false, features = [
+    "symphonia-mp3",
+    "symphonia-flac",
+    "symphonia-vorbis",
+    "symphonia-isomp4",
+    "symphonia-aac",
+    "symphonia-wav",
+] }
+
+# Metadata + embedded album art
+lofty = "0.22"
+
+# Label text rasterization (glyph outlines → RGBA buffer)
+ab_glyph = "0.2"
+
+# MPRIS D-Bus service: media keys, playerctl, panel controls
+mpris-server = "0.8"
+
+# Native file picker via XDG portal
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
+
+walkdir = "2"
+tokio = { version = "1", features = ["rt", "time"] }
+
+# Album-art scraping: blocking HTTP (run inside spawn_blocking), JSON parse.
+ureq = { version = "2", features = ["json", "tls"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"

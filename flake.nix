@@ -1,0 +1,101 @@
+{
+  description = "cosmic-cassette-deck package + NixOS module (player + panel applet)";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+  };
+
+  outputs = { self, nixpkgs, flake-utils }:
+    let
+      mkModule = { config, lib, pkgs, ... }: {
+        options.services.cosmic-cassette-deck = {
+          enable = lib.mkEnableOption "COSMIC photorealistic cassette player + panel applet";
+        };
+
+        config = lib.mkIf config.services.cosmic-cassette-deck.enable {
+          environment.systemPackages = [
+            self.packages.${pkgs.system}.default
+          ];
+        };
+      };
+    in
+    {
+      nixosModules.default = mkModule;
+      nixosModules.cosmic-cassette-deck = mkModule;
+    }
+    // flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        lib = pkgs.lib;
+
+        runtimeLibs = with pkgs; [
+          libxkbcommon
+          wayland
+          vulkan-loader
+          libGL
+          alsa-lib
+        ];
+      in
+      {
+        packages.default = pkgs.rustPlatform.buildRustPackage {
+          pname = "cosmic-cassette-deck";
+          version = "0.2.0";
+
+          src = ./.;
+
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+            allowBuiltinFetchGit = true;
+          };
+          cargoHash = lib.fakeHash;
+
+          nativeBuildInputs = with pkgs; [
+            cmake
+            pkg-config
+            autoPatchelfHook
+            makeBinaryWrapper
+            rustPlatform.bindgenHook
+          ];
+
+          buildInputs = with pkgs; [
+            glib
+            fontconfig
+            freetype
+            expat
+            libxkbcommon
+            wayland
+            vulkan-loader
+            libGL
+            alsa-lib
+            openssl
+          ];
+
+          postInstall = ''
+            install -Dm644 res/io.github.ctsdownloads.CosmicCassetteDeck.desktop \
+              $out/share/applications/io.github.ctsdownloads.CosmicCassetteDeck.desktop
+            install -Dm644 res/io.github.ctsdownloads.CosmicCassetteDeck.svg \
+              $out/share/icons/hicolor/scalable/apps/io.github.ctsdownloads.CosmicCassetteDeck.svg
+          '';
+
+          postFixup = ''
+            wrapProgram $out/bin/cosmic-cassette-deck \
+              --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs}
+          '';
+
+          meta = {
+            description = "Photorealistic COSMIC cassette player with a fanned-case browser";
+            homepage = "https://github.com/ctsdownloads/cosmic-cassette-deck";
+            license = lib.licenses.gpl3Only;
+            platforms = lib.platforms.linux;
+            mainProgram = "cosmic-cassette-deck";
+          };
+        };
+
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [ self.packages.${system}.default ];
+          packages = with pkgs; [ rustc cargo just rust-analyzer ];
+          LD_LIBRARY_PATH = lib.makeLibraryPath runtimeLibs;
+        };
+      });
+}
