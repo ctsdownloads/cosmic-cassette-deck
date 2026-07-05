@@ -4,7 +4,9 @@ A photoreal 1980s portable cassette player for your local music library. A nativ
 
 The deck is a photograph, and the app draws the living parts on top every frame: spinning reels with real spool physics, a rasterized track label, and transport keys that travel down into the chassis. Click a cassette case and it swings open, the tape lifts out, and it drops into the walkman. Recolor the deck and swap the room behind it.
 
-> Screenshots: capture the running app, drop them in `docs/`, and link them here.
+<p align="center">
+  <img src="docs/player-silver.png" alt="The photoreal cassette deck playing a track" width="760">
+</p>
 
 ## Features
 
@@ -18,6 +20,24 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Mechanical sound. The transport keys click, the tape seats with a clunk when it drops into the deck, holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary and are swappable (see Assets).
 - MPRIS support for media keys, playerctl, and desktop panel controls.
 - Formats: MP3, FLAC, M4A/AAC, and WAV (rodio and symphonia).
+
+## Screenshots
+
+The Cassette Rack fans through your library, one cassette per album, with cover art from your tags (or scraped when a tag has none). Browse with the arrow keys or Prev and Next; Play loads the album at the front.
+
+![Cassette Rack](docs/cassette-rack.png)
+
+Click an album to bring its case forward, its cover printed on the J-card. Click the case, or Play, to open it.
+
+![Album screen](docs/album.png)
+
+The case hinges open, the tape lifts out, and it drops into the deck before playback begins.
+
+![Insert animation](docs/insert.png)
+
+Five colour skins cycle from the Player with the Walkman button: the same photographed deck, recolored. The player at the top of this page is the Denim Belt skin; here is Red, playing the same track.
+
+![Red skin](docs/player-red.png)
 
 ## Building
 
@@ -75,6 +95,12 @@ State is saved to `~/.config/cosmic-cassette-deck/state`: music folder, volume, 
 - Player: transport controls, seek, and volume. The Walkman colour button cycles the deck colour.
 - Cassette Rack: browse albums with the arrow keys. The backdrop controls cycle, add, and remove the room background. Click an album to open it.
 - Album screen: click the case, or the play button, to open it and insert the tape.
+
+### Albums and tracks
+
+Files are grouped into albums by their Artist and Album tags (read with lofty), so each album is one cassette in the rack no matter how many songs it holds, and its tracks play in track-number order. Files with no tags fall back to their `Artist - Title` filename, and each becomes its own single.
+
+Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf. To move between songs, use Prev and Next, or slide the FUNCT switch on the deck so fast-forward and rewind step from track to track instead of winding the tape. The label always shows the song that is playing.
 
 ## Tech
 
