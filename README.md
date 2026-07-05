@@ -13,7 +13,7 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Photoreal deck with animated reels driven by physically derived spool speeds. The source reel empties and speeds up while the take-up slows (an area-conserving pack model), and a fixed specular highlight is drawn over each spinning hub the way light stays put on a real deck.
 - Case-open and insert animation. On the album screen, click the cassette case: it hinges open, the tape lifts out and drops into the deck, and playback begins.
 - Dynamic label. Song and album come from your file tags, rasterized with ab_glyph and rotated (working around iced's lack of rotated canvas text), regenerated on track change rather than per frame.
-- Colour skins: silver, red, blue, black, and white, cycled from the Player.
+- Colour skins: Denim Belt, Red, Blue, Black, and White, cycled from the Player.
 - Swappable room backgrounds. Cycle the built-ins, add your own image, or remove ones you added. The choice applies to the rack, the album screen, and the insert animation.
 - Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys.
 - Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
@@ -39,13 +39,24 @@ Five colour skins cycle from the Player with the Walkman button: the same photog
 
 ![Red skin](docs/player-red.png)
 
-## Building
+## Building from source
 
-Stable Rust plus a few system libraries. On NixOS, to install the app as a system package instead of building from source, see [NIXOS_INSTALL.md](NIXOS_INSTALL.md). wgpu needs a Vulkan-capable GPU and driver, and the app runs under Wayland.
+You need the Rust toolchain plus a few system libraries, then a single `cargo` build. There are two ways to get that environment: a normal distro with rustup, or NixOS using the dev shell this repo ships. Both finish at the same build step.
 
-### Prerequisites
+To instead install it as a system package on NixOS (no manual build), skip this section and follow [NIXOS_INSTALL.md](NIXOS_INSTALL.md).
 
-Install Rust with [rustup](https://rustup.rs), then the system development libraries.
+### 1. Clone the repo
+
+```sh
+git clone https://github.com/ctsdownloads/cosmic-cassette-deck.git
+cd cosmic-cassette-deck
+```
+
+Run every command below from inside this `cosmic-cassette-deck` directory.
+
+### 2. Get the toolchain and libraries
+
+**On a normal distro** - install Rust with [rustup](https://rustup.rs), then the system libraries for your package manager:
 
 Debian and Ubuntu:
 
@@ -65,28 +76,27 @@ Arch:
 sudo pacman -S base-devel pkg-config alsa-lib wayland libxkbcommon vulkan-icd-loader
 ```
 
-Package names vary by distribution. In all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, and a Vulkan ICD. File dialogs use the XDG desktop portal through rfd. Under COSMIC, xdg-desktop-portal-cosmic is already present; on other desktops install the matching portal backend.
+Package names vary, but in all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, and a Vulkan driver plus loader. The app runs under Wayland, and wgpu needs a Vulkan-capable GPU. File dialogs use the XDG desktop portal through rfd; COSMIC already ships xdg-desktop-portal-cosmic, other desktops need their own portal backend.
 
-### Build and run
+**On NixOS** - install nothing system-wide. The repo ships a dev shell (as both `flake.nix` and `shell.nix`) carrying the whole toolchain and libraries. Enter it:
+
+```sh
+nix develop        # flakes; or `nix-shell` on classic Nix
+```
+
+Your shell prompt changes to show you are inside it. Run the next step from in there.
+
+### 3. Build and run
 
 ```sh
 cargo run --release
 ```
 
-This repo ships a committed `Cargo.lock`, so `cargo build` uses it as-is (if you change dependencies, regenerate it with `cargo generate-lockfile` and commit). Launch the app, open a music folder with the Open Folder button, and it scans the folder and fills the rack.
+The first build compiles libcosmic and takes several minutes. It produces the binary at `target/release/cosmic-cassette-deck` - run that directly next time, or `cargo run --release` again. (`Cargo.lock` is committed, so the build is reproducible; only regenerate it with `cargo generate-lockfile` if you change dependencies.)
 
-### NixOS
+### 4. First launch
 
-The repo ships a `shell.nix` and a matching flake devShell. They provide the whole build toolchain (compiler, pkg-config, and the wayland, vulkan, and alsa libraries) and set the build and runtime paths for you. Enter the shell, then build inside it:
-
-```sh
-nix develop        # flakes enabled; or use: nix-shell
-cargo build --release
-```
-
-Run `cargo build --release` once you are inside the shell (the prompt changes to show you are in it). That is the whole process on NixOS: there are no packages to install into your system config and no environment variables to set by hand.
-
-`nix-shell` reads `shell.nix` and works on any Nix. `nix develop` reads the flake devShell and needs flakes enabled. To install the finished app as a system package instead of building it from source, see [NIXOS_INSTALL.md](NIXOS_INSTALL.md).
+Click **Open Folder** and point it at your music directory. The app scans it recursively, groups files into album cassettes by their tags, and fills the rack. Click a cassette to play it.
 
 ## Usage and configuration
 
@@ -110,7 +120,7 @@ Rust, libcosmic (its vendored iced fork, wgpu renderer, Wayland and winit), rodi
 
 Skin art lives in `assets/`, and the colour skins are recolored variants of the base deck.
 
-Sound effects are FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, and `end_clack`. They are embedded in the binary at build time, so to change the sound, replace a clip with your own recording under the same name and rebuild. The two looped clips are made seamless in code, so any length works.
+Sound effects are FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, and `end_clack`. They are embedded in the binary at build time, so to change the sound, replace a clip with your own recording under the same name and rebuild. Only `wind_loop` repeats; it is stitched seamless in code, so any length works.
 
 ## License
 
