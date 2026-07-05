@@ -15,8 +15,9 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Swappable room backgrounds. Cycle the built-ins, add your own image, or remove ones you added. The choice applies to the rack, the album screen, and the insert animation.
 - Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys.
 - Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
+- Mechanical sound. The transport keys click, the tape seats with a clunk when it drops into the deck, holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary and are swappable (see Assets).
 - MPRIS support for media keys, playerctl, and desktop panel controls.
-- Formats: MP3, FLAC, Ogg Vorbis, M4A/AAC, and WAV (rodio and symphonia).
+- Formats: MP3, FLAC, M4A/AAC, and WAV (rodio and symphonia).
 
 ## Building
 
@@ -82,6 +83,8 @@ Rust, libcosmic (its vendored iced fork, wgpu renderer, Wayland and winit), rodi
 ## Assets
 
 Skin art lives in `assets/`, and the colour skins are recolored variants of the base deck.
+
+Sound effects are FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, and `end_clack`. They are embedded in the binary at build time, so to change the sound, replace a clip with your own recording under the same name and rebuild. The two looped clips are made seamless in code, so any length works.
 
 ## License
 

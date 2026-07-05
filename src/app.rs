@@ -1,4 +1,4 @@
-//! The libcosmic Application: Model-View-Update.
+//! The libcosmic Application: Model–View–Update.
 //!
 //! Screens: Player ⇄ Rack ⇄ AlbumDetail. Audio runs on its own thread
 //! (audio.rs); MPRIS on another (mpris.rs). This module sends commands,
@@ -31,7 +31,7 @@ const TICK: Duration = Duration::from_millis(16); // ~60 fps: keeps fast spool
 const STATE_SAVE_EVERY: Duration = Duration::from_secs(5);
 /// How long the cassette-load animation plays before the player appears.
 const LOAD_ANIM: Duration = Duration::from_millis(850);
-/// How long the case-open -> walkman animation plays before the player appears.
+/// How long the case-open → walkman animation plays before the player appears.
 const CASE_ANIM: Duration = Duration::from_millis(1600);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -279,7 +279,7 @@ impl App {
         self.playing = true;
         self.stopped = false;
         self.notice = None;
-        // Rasterize the label once per track/skin change - not per frame.
+        // Rasterize the label once per track/skin change — not per frame.
         self.label_img = Some(label::render(&song, &album_name, self.skins[self.skin_idx].spec));
         self.screen = Screen::Player;
         self.push_mpris_metadata();
@@ -296,7 +296,7 @@ impl App {
         self.position = pos;
         self.playing = false;
         self.push_mpris(MprisUpdate::Paused);
-        // Session resume loads the tape but must NOT jump to the player - the
+        // Session resume loads the tape but must NOT jump to the player — the
         // app always opens on the Cassette Rack. (load_track sets Player.)
         self.screen = Screen::Rack;
     }
@@ -314,7 +314,7 @@ impl App {
             self.load_track(a, next as usize);
         } else if offset > 0 {
             if a + 1 < self.library.len() {
-                // Side ran out - next tape on the shelf.
+                // Side ran out — next tape on the shelf.
                 self.load_track(a + 1, 0);
             } else {
                 // End of the library.
@@ -559,6 +559,8 @@ impl Application for App {
                 } = self.screen
                 {
                     if now.duration_since(started) >= LOAD_ANIM {
+                        // Tape clicks into the transport as the animation lands.
+                        let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
                         self.load_track(album, track);
                         // load_track sets screen = Player.
                     }
@@ -566,7 +568,7 @@ impl Application for App {
                     return Task::none();
                 }
 
-                // Same for the case-open animation (open -> lift -> drop -> seat).
+                // Same for the case-open animation (open → lift → drop → seat).
                 if let Screen::CaseOpen {
                     album,
                     track,
@@ -574,6 +576,8 @@ impl Application for App {
                 } = self.screen
                 {
                     if now.duration_since(started) >= CASE_ANIM {
+                        // Tape drops in and seats as the case-open animation ends.
+                        let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
                         self.load_track(album, track);
                         // load_track sets screen = Player.
                     }
@@ -582,7 +586,7 @@ impl Application for App {
 
                 // Hold-to-wind: audio is paused; spin the position locally at
                 // wind speed and whirl the spools. The real seek happens once,
-                // on WindStop - per-tick decoder seeks would stutter.
+                // on WindStop — per-tick decoder seeks would stutter.
                 if let Some(dir) = self.wind {
                     const WIND_RATE: f32 = 12.0; // 12× tape speed (audio position)
                     const WIND_VISUAL: f32 = 3.0; // spool spin multiplier
@@ -610,6 +614,8 @@ impl Application for App {
                 }
 
                 if finished {
+                    // Auto-stop clunk as the tape runs out, before we advance.
+                    let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::EndClack));
                     self.step_track(1); // auto-advance (crosses albums)
                     return Task::none();
                 }
@@ -738,7 +744,7 @@ impl Application for App {
             }
 
             Message::OpenCase { album, track } => {
-                // Clicking the reveal case plays the open -> lift -> insert
+                // Clicking the reveal case plays the open → lift → insert
                 // animation; the track loads when it completes (Tick handler).
                 self.screen = Screen::CaseOpen {
                     album,
@@ -748,6 +754,7 @@ impl Application for App {
             }
 
             Message::TogglePlay => {
+                let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
                 if let Some((a, t)) = self.current {
                     if self.stopped {
                         // Tape-deck semantics: Stop keeps the tape loaded;
@@ -768,6 +775,7 @@ impl Application for App {
             }
 
             Message::Stop => {
+                let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
                 let _ = self.audio_tx.send(AudioCmd::Stop);
                 self.playing = false;
                 self.stopped = true;
@@ -802,10 +810,16 @@ impl Application for App {
                         // Real decks mute while winding.
                         let _ = self.audio_tx.send(AudioCmd::Pause);
                     }
+                    // Button click, then the FF/REW whirr for as long as held.
+                    let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
+                    let _ = self.audio_tx.send(AudioCmd::Wind(true));
                 }
             }
 
             Message::ToggleSkipMode => {
+                // FUNCT tab: button click, and stop any wind that was running.
+                let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
+                let _ = self.audio_tx.send(AudioCmd::Wind(false));
                 if self.wind.take().is_some() {
                     let _ = self.audio_tx.send(AudioCmd::Seek(self.position));
                     if self.wind_resume {
@@ -817,6 +831,7 @@ impl Application for App {
             }
 
             Message::WindStop => {
+                let _ = self.audio_tx.send(AudioCmd::Wind(false));
                 if self.wind.take().is_some() {
                     let _ = self.audio_tx.send(AudioCmd::Seek(self.position));
                     if self.wind_resume {
@@ -839,7 +854,7 @@ impl Application for App {
 
             Message::CycleSkin => {
                 self.skin_idx = (self.skin_idx + 1) % self.skins.len();
-                // Label dimensions differ per skin - regenerate for the tape.
+                // Label dimensions differ per skin — regenerate for the tape.
                 if let Some((album, track)) = self.current_track() {
                     let (song, alb) = (track.title.clone(), album.title.clone());
                     self.label_img =
@@ -889,7 +904,7 @@ impl Application for App {
                     self.save_state();
                 } else {
                     self.notice = Some(
-                        "That's a built-in background - it can't be removed. Cycle to an image you added to remove it."
+                        "That's a built-in background — it can't be removed. Cycle to an image you added with ＋ Image to remove it."
                             .into(),
                     );
                 }
@@ -934,7 +949,7 @@ impl Application for App {
         };
         // The 80s bedroom sits behind the Reveal screen. The rack draws its own
         // dimmed bedroom in-canvas, and the Player is the self-contained jeans
-        // deck (a full scene of its own - a room behind it would clash).
+        // deck (a full scene of its own — a room behind it would clash).
         if matches!(self.screen, Screen::Reveal(_) | Screen::CaseOpen { .. }) {
             let bg = widget::image(self.current_bg().clone())
                 .width(Length::Fill)
@@ -966,7 +981,7 @@ impl App {
         let deck = Canvas::new(scene).width(Length::Fill).height(Length::Fill);
 
         // Mirror the player_view layout EXACTLY so the deck renders at the same
-        // size and position - same column, padding, spacing, and the same
+        // size and position — same column, padding, spacing, and the same
         // control rows (shown disabled) reserving the same vertical space.
         // Otherwise the deck jumps/resizes when the animation hands off.
         let seek_row = widget::row::with_children(vec![
@@ -1122,7 +1137,7 @@ impl App {
         // Skin picker only when more than one skin exists (belt-only: hidden).
         if self.skins.len() > 1 {
             nav_buttons.push(
-                button::standard(format!("Walkman: {}", self.skins[self.skin_idx].spec.name))
+                button::standard(format!("Walkman: {} ⟳", self.skins[self.skin_idx].spec.name))
                     .on_press(Message::CycleSkin)
                     .into(),
             );
@@ -1137,7 +1152,7 @@ impl App {
 
         if self.current.is_none() {
             content =
-                content.push(text::body("No tape loaded - pick a song from the Music Rack."));
+                content.push(text::body("No tape loaded — pick a song from the Music Rack."));
         }
         if let Some(n) = &self.notice {
             content = content.push(text::caption(n.clone()));
@@ -1158,9 +1173,9 @@ impl App {
         let header = widget::row::with_children(vec![
             text::title3("Cassette Rack").into(),
             widget::Space::new().width(Length::Fill).into(),
-            button::standard("Backdrop").on_press(Message::CycleBackground).into(),
-            button::standard("Add image").on_press(Message::PickBackground).into(),
-            button::standard("Remove").on_press(Message::RemoveBackground).into(),
+            button::standard("Backdrop ⟳").on_press(Message::CycleBackground).into(),
+            button::standard("＋ Image").on_press(Message::PickBackground).into(),
+            button::standard("🗑 Remove").on_press(Message::RemoveBackground).into(),
             button::standard("Player").on_press(Message::ShowPlayer).into(),
             button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
         ])
@@ -1168,7 +1183,7 @@ impl App {
         .align_y(Alignment::Center);
 
         if self.scanning {
-            let body = container(text::body("Scanning your tapes...")).center(Length::Fill);
+            let body = container(text::body("Scanning your tapes…")).center(Length::Fill);
             return widget::column::with_capacity(2)
                 .spacing(12)
                 .padding(20)
@@ -1209,7 +1224,7 @@ impl App {
         // progress so the user knows covers are still arriving.
         let cur = self.library.get(self.browse_index);
         let title = cur
-            .map(|a| format!("{} - {}", a.artist, a.title))
+            .map(|a| format!("{} – {}", a.artist, a.title))
             .unwrap_or_default();
         let covered = self
             .library
@@ -1238,14 +1253,14 @@ impl App {
                 widget::row::with_capacity(3)
                     .spacing(16)
                     .align_y(Alignment::Center)
-                    .push(button::standard("Prev").on_press(Message::BrowseStep(-1)))
+                    .push(button::standard("‹ Prev").on_press(Message::BrowseStep(-1)))
                     .push(
-                        button::suggested("Play").on_press(Message::OpenCase {
+                        button::suggested("▶ Play").on_press(Message::OpenCase {
                             album: self.browse_index,
                             track: 0,
                         }),
                     )
-                    .push(button::standard("Next").on_press(Message::BrowseStep(1))),
+                    .push(button::standard("Next ›").on_press(Message::BrowseStep(1))),
             );
 
         // Canvas takes the flexible space; controls sit in a fixed footer that
@@ -1274,7 +1289,7 @@ impl App {
             return self.rack_view();
         };
 
-        // Consistent top nav - same controls available as every other screen.
+        // Consistent top nav — same controls available as every other screen.
         let header = widget::row::with_children(vec![
             text::title2("Music Rack").into(),
             widget::Space::new().width(Length::Fill).into(),
@@ -1285,7 +1300,7 @@ impl App {
         .spacing(12)
         .align_y(Alignment::Center);
 
-        // Compose the cover onto the TRANSPARENT case (no black box) - same as
+        // Compose the cover onto the TRANSPARENT case (no black box) — same as
         // the fan. Prefer scraped bytes, else embedded art.
         let cover_bytes = self
             .cover_bytes
@@ -1293,20 +1308,20 @@ impl App {
             .map(|b| b.as_slice())
             .or_else(|| album.art_bytes.as_ref().map(|b| b.as_slice()));
         let composed = crate::case_scene::compose(&self.case_png, cover_bytes);
-        // Clicking the case plays the open -> lift -> insert animation.
+        // Clicking the case plays the open → lift → insert animation.
         let case: Element<Message> = widget::mouse_area(
             widget::image(composed).width(Length::Fixed(340.0)),
         )
         .on_press(Message::OpenCase { album: idx, track: 0 })
         .into();
 
-        let title = text::title3(format!("{} - {}", album.artist, album.title));
+        let title = text::title3(format!("{} – {}", album.artist, album.title));
         // If THIS album is the one playing, also show the current song title.
         let now_playing: Option<Element<Message>> = match self.current {
             Some((a, t)) if a == idx => album
                 .tracks
                 .get(t)
-                .map(|track| text::body(format!("Now playing: {}", track.title)).into()),
+                .map(|track| text::body(format!("♪ Now playing: {}", track.title)).into()),
             _ => None,
         };
         // Play/Pause reflects state: if THIS album is the one playing, show
@@ -1314,20 +1329,20 @@ impl App {
         let this_album_playing =
             matches!(self.current, Some((a, _)) if a == idx) && self.playing;
         let play_btn = if this_album_playing {
-            button::suggested("Pause").on_press(Message::TogglePlay)
+            button::suggested("⏸ Pause").on_press(Message::TogglePlay)
         } else if matches!(self.current, Some((a, _)) if a == idx) {
-            // This album is loaded but paused - resume via toggle.
-            button::suggested("Play").on_press(Message::TogglePlay)
+            // This album is loaded but paused — resume via toggle.
+            button::suggested("▶ Play").on_press(Message::TogglePlay)
         } else {
-            // A different (or no) album - start this one via the case-open.
-            button::suggested("Play").on_press(Message::OpenCase { album: idx, track: 0 })
+            // A different (or no) album — start this one via the case-open.
+            button::suggested("▶ Play").on_press(Message::OpenCase { album: idx, track: 0 })
         };
         // Play + Back side by side, in a fixed row that always stays on screen.
         let buttons = widget::row::with_capacity(2)
             .spacing(12)
             .align_y(Alignment::Center)
             .push(play_btn)
-            .push(button::suggested("Back to rack").on_press(Message::CloseReveal));
+            .push(button::suggested("← Back to rack").on_press(Message::CloseReveal));
 
         // Case takes the flexible middle; title + buttons pinned in a footer
         // that's always visible (the case alone must not consume the buttons).
@@ -1362,8 +1377,8 @@ const EMPTY_DECK_PNG: &[u8] = include_bytes!("../assets/skins/belt/empty.png");
 const CASSETTE_SPRITE_PNG: &[u8] = include_bytes!("../assets/cassette_sprite.png");
 /// Keyed open cassette-case sprite (green removed), for the case-open animation.
 const CASE_OPEN_PNG: &[u8] = include_bytes!("../assets/case_open.png");
-/// Extra bundled room backgrounds - drop PNGs in assets/ and list them here to
-/// grow the built-in set the "Backdrop" button cycles through.
+/// Extra bundled room backgrounds — drop PNGs in assets/ and list them here to
+/// grow the built-in set the "Backdrop ⟳" button cycles through.
 const EXTRA_BGS: &[&[u8]] = &[
     // include_bytes!("../assets/backgrounds/arcade.png"),
 ];
@@ -1431,7 +1446,7 @@ fn mpris_commands() -> impl cosmic::iced::futures::Stream<Item = Message> {
 
 /// Advance a spool angle, clamping the per-frame step so fast winds never
 /// exceed the wagon-wheel aliasing limit of the spoked hubs (~0.35 rad/frame
-/// against 6-8-fold spoke symmetry). Preserves direction exactly.
+/// against 6–8-fold spoke symmetry). Preserves direction exactly.
 fn spin(angle: f32, delta: f32) -> f32 {
     let d = delta.clamp(-0.35, 0.35);
     (angle + d).rem_euclid(std::f32::consts::TAU)
@@ -1498,7 +1513,7 @@ fn truncate(s: &str, max: usize) -> String {
         s.to_string()
     } else {
         let mut t: String = s.chars().take(max.saturating_sub(1)).collect();
-        t.push_str("...");
+        t.push('…');
         t
     }
 }
