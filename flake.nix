@@ -1,5 +1,5 @@
 {
-  description = "cosmic-cassette-deck package + NixOS module (player + panel applet)";
+  description = "cosmic-cassette-deck package + NixOS module";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -10,7 +10,7 @@
     let
       mkModule = { config, lib, pkgs, ... }: {
         options.services.cosmic-cassette-deck = {
-          enable = lib.mkEnableOption "COSMIC photorealistic cassette player + panel applet";
+          enable = lib.mkEnableOption "COSMIC photorealistic cassette player";
         };
 
         config = lib.mkIf config.services.cosmic-cassette-deck.enable {

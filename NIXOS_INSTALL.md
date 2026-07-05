@@ -1,71 +1,50 @@
-# Cassette Deck - NixOS install (panel applet the Nix way)
+# Installing on NixOS
 
-This packages the player + panel applet exactly like your other COSMIC applets
-(cosmic-app-volume, cosmic-camera-controls, etc). The cassette icon appears in
-the COSMIC panel and launches the full player.
+This builds the app as a Nix package and installs its launcher, so it appears in the COSMIC app library (and any freedesktop app menu) like any other application. It is a normal desktop app.
 
-## 1. Place the package in your config
+## 1. Add it as a flake input
 
-Copy this whole directory to:
+In your system `flake.nix`, alongside your other inputs:
 
-    ~/nixos-config/packages/cosmic-cassette-deck/
+```nix
+cosmic-cassette-deck = {
+  url = "github:ctsdownloads/cosmic-cassette-deck";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+```
 
-## 2. Generate Cargo.lock (required by the Nix build)
+For local hacking, point at a checkout instead: `url = "path:/path/to/cosmic-cassette-deck";`.
 
-The Nix build needs a committed Cargo.lock. Generate it once:
+## 2. Install the package
 
-    cd ~/nixos-config/packages/cosmic-cassette-deck
-    nix develop -c cargo generate-lockfile
-    # (or: nix-shell -p cargo --run "cargo generate-lockfile")
+Either enable the provided NixOS module:
 
-## 3. Add it as a flake input
+```nix
+imports = [ inputs.cosmic-cassette-deck.nixosModules.default ];
+services.cosmic-cassette-deck.enable = true;
+```
 
-In `~/nixos-config/flake.nix`, alongside your other cosmic-* inputs:
+or add the package directly:
 
-    cosmic-cassette-deck = {
-      url = "path:./packages/cosmic-cassette-deck";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+```nix
+environment.systemPackages = [
+  inputs.cosmic-cassette-deck.packages.${pkgs.system}.default
+];
+```
 
-## 4. Enable it via the module
+## 3. Rebuild
 
-In a module you already import (e.g. modules/cosmic-applets.nix or
-modules/desktop-cosmic.nix), add the module import and enable it. Two ways:
+```sh
+sudo nixos-rebuild switch --flake /etc/nixos#your-host
+```
 
-**Option A - use the provided NixOS module (installs the package):**
+Dependencies come from the committed `Cargo.lock` (`cargoLock.lockFile`), so there is no `cargoHash` to chase. If you fork and change dependencies, regenerate the lock with `cargo generate-lockfile` (inside `nix develop`) and commit it.
 
-    imports = [ inputs.cosmic-cassette-deck.nixosModules.default ];
-    services.cosmic-cassette-deck.enable = true;
+## 4. Launch it
 
-**Option B - just add the package directly (like easyspeak in your flake):**
-
-    environment.systemPackages = [
-      inputs.cosmic-cassette-deck.packages.${pkgs.system}.default
-    ];
-
-## 5. Rebuild
-
-    sudo nixos-rebuild switch --flake ~/nixos-config#<your-host>
-
-The FIRST build will FAIL with a cargoHash mismatch - this is expected (same as
-your other packages). Copy the `got: sha256-...` value from the error into
-`packages/cosmic-cassette-deck/flake.nix`, replacing `lib.fakeHash` on the
-`cargoHash =` line, then rebuild again.
-
-## 6. Add the applet to the panel
-
-    # restart the panel so it picks up the new desktop entry
-    pkill cosmic-panel
-
-Then: COSMIC Settings -> Desktop -> Panel -> Add Applet -> "Cassette Deck".
-Click the cassette icon in the panel -> the player opens.
+The binary installs into the Nix store and is wrapped with the right `LD_LIBRARY_PATH`, so there is no PATH setup to do. Open it from the COSMIC app library, or your app menu, as "Cassette Deck".
 
 ## Notes
 
-- Both binaries (`cosmic-cassette-deck`, `cosmic-cassette-applet`) install into
-  the Nix store and are wrapped with the right LD_LIBRARY_PATH, so no PATH
-  problems - the panel launches them from the store path in the desktop entry.
-- The desktop entry uses the COSMIC applet fields (Categories=COSMIC,
-  X-CosmicApplet=true, etc) matching your working applets.
-- Clicking the applet spawns the player. Single-instance (raise instead of
-  duplicate) isn't wired - ask if you want it.
+- The desktop entry is a standard application launcher (`Type=Application`, audio/player categories).
+- One binary is produced, `cosmic-cassette-deck`; the app menu launches it from its Nix store path.
