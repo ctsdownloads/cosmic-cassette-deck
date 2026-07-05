@@ -52,7 +52,7 @@ Package names vary by distribution. In all cases you need a C toolchain, pkg-con
 cargo run --release
 ```
 
-The first `cargo build` generates `Cargo.lock`, which you should commit. Launch the app, open a music folder with the Open Folder button, and it scans the folder and fills the rack.
+This repo ships a committed `Cargo.lock`, so `cargo build` uses it as-is (if you change dependencies, regenerate it with `cargo generate-lockfile` and commit). Launch the app, open a music folder with the Open Folder button, and it scans the folder and fills the rack.
 
 ### NixOS
 
@@ -93,7 +93,7 @@ Rust, libcosmic (its vendored iced fork, wgpu renderer, Wayland and winit), rodi
 
 ## Assets
 
-Skin art lives in `assets/`, and the colour skins are recolored variants of the base deck. `tools/make_assets.py` is a legacy helper for regenerating base skin assets; its constants predate the current multi-skin layout.
+Skin art lives in `assets/`, and the colour skins are recolored variants of the base deck.
 
 ## License
 

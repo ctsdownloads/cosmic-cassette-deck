@@ -19,7 +19,7 @@ pkgs.mkShell {
   # binary builds fine and then dies at startup unable to find libwayland.
   LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibs;
 
-  # Bake the store paths into the binary as RPATH so it runs standalone —
+  # Bake the store paths into the binary as RPATH so it runs standalone;
   # dlopen (winit/wayland, vulkan) searches the caller's RUNPATH.
   RUSTFLAGS = "-C link-arg=-Wl,-rpath,${pkgs.lib.makeLibraryPath runtimeLibs}";
 }
