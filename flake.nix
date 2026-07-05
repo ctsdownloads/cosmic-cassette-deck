@@ -57,7 +57,10 @@
             makeBinaryWrapper
           ];
 
-          buildInputs = runtimeLibs;
+          # runtimeLibs are dlopen'd (wrapped into LD_LIBRARY_PATH below);
+          # stdenv.cc.cc.lib supplies libgcc_s.so.1, which the Rust binary links
+          # and autoPatchelfHook must resolve at build time.
+          buildInputs = runtimeLibs ++ [ pkgs.stdenv.cc.cc.lib ];
 
           postInstall = ''
             install -Dm644 res/io.github.ctsdownloads.CosmicCassetteDeck.desktop \
