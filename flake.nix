@@ -29,6 +29,8 @@
         pkgs = nixpkgs.legacyPackages.${system};
         lib = pkgs.lib;
 
+        # Linked at build time: alsa (rodio). Everything else below is
+        # dlopen'd at runtime by winit/wgpu and provided via LD_LIBRARY_PATH.
         runtimeLibs = with pkgs; [
           libxkbcommon
           wayland
@@ -48,28 +50,14 @@
             lockFile = ./Cargo.lock;
             allowBuiltinFetchGit = true;
           };
-          cargoHash = lib.fakeHash;
 
           nativeBuildInputs = with pkgs; [
-            cmake
             pkg-config
             autoPatchelfHook
             makeBinaryWrapper
-            rustPlatform.bindgenHook
           ];
 
-          buildInputs = with pkgs; [
-            glib
-            fontconfig
-            freetype
-            expat
-            libxkbcommon
-            wayland
-            vulkan-loader
-            libGL
-            alsa-lib
-            openssl
-          ];
+          buildInputs = runtimeLibs;
 
           postInstall = ''
             install -Dm644 res/io.github.ctsdownloads.CosmicCassetteDeck.desktop \
