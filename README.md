@@ -56,28 +56,16 @@ This repo ships a committed `Cargo.lock`, so `cargo build` uses it as-is (if you
 
 ### NixOS
 
-Use the bundled `shell.nix` (or the flake). It provides the toolchain and, just as importantly, sets `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, and an rpath so the build links and the binary launches:
+The repo ships a `shell.nix` and a matching flake devShell. They provide the whole build toolchain (compiler, pkg-config, and the wayland, vulkan, and alsa libraries) and set the build and runtime paths for you. Enter the shell, then build inside it:
 
 ```sh
-nix-shell
+nix develop        # flakes enabled; or use: nix-shell
 cargo build --release
 ```
 
-`nix-shell` and `nix develop` are two entry points to the same dev environment; use whichever fits your setup:
+Run `cargo build --release` once you are inside the shell (the prompt changes to show you are in it). That is the whole process on NixOS: there are no packages to install into your system config and no environment variables to set by hand.
 
-- `nix-shell` reads `shell.nix` (the classic, non-flake file). Works on any Nix, no flags.
-- `nix develop` reads the `flake.nix` devShell (the flakes system). Needs flakes enabled.
-
-If you would rather put the toolchain in your system config, the packages are:
-
-```nix
-environment.systemPackages = with pkgs; [
-  gcc cargo rustc rustfmt clippy pkg-config
-  libxkbcommon wayland vulkan-loader libGL alsa-lib
-];
-```
-
-Installing them alone is not enough on NixOS, though: you still have to set `PKG_CONFIG_PATH` (so pkg-config finds `alsa.pc` and `wayland.pc` at build time) and `LD_LIBRARY_PATH` (so the binary finds libwayland and vulkan at launch), which is exactly what `shell.nix` does for you. See `NIXOS_INSTALL.md` for installing the finished app as a system package.
+`nix-shell` reads `shell.nix` and works on any Nix. `nix develop` reads the flake devShell and needs flakes enabled. To install the finished app as a system package instead of building it from source, see `NIXOS_INSTALL.md`.
 
 ## Usage and configuration
 
