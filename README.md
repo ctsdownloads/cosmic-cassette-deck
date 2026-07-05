@@ -20,7 +20,7 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 
 ## Building
 
-Stable Rust plus a few system libraries. wgpu needs a Vulkan-capable GPU and driver, and the app runs under Wayland.
+Stable Rust plus a few system libraries. On NixOS, to install the app as a system package instead of building from source, see [NIXOS_INSTALL.md](NIXOS_INSTALL.md). wgpu needs a Vulkan-capable GPU and driver, and the app runs under Wayland.
 
 ### Prerequisites
 
@@ -65,7 +65,7 @@ cargo build --release
 
 Run `cargo build --release` once you are inside the shell (the prompt changes to show you are in it). That is the whole process on NixOS: there are no packages to install into your system config and no environment variables to set by hand.
 
-`nix-shell` reads `shell.nix` and works on any Nix. `nix develop` reads the flake devShell and needs flakes enabled. To install the finished app as a system package instead of building it from source, see `NIXOS_INSTALL.md`.
+`nix-shell` reads `shell.nix` and works on any Nix. `nix develop` reads the flake devShell and needs flakes enabled. To install the finished app as a system package instead of building it from source, see [NIXOS_INSTALL.md](NIXOS_INSTALL.md).
 
 ## Usage and configuration
 
