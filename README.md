@@ -15,6 +15,7 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Dynamic label. Song and album come from your file tags, rasterized with ab_glyph and rotated (working around iced's lack of rotated canvas text), regenerated on track change rather than per frame.
 - Colour skins: Denim Belt, Red, Blue, Black, and White, cycled from the Player.
 - Swappable room backgrounds. Cycle the built-ins, add your own image, or remove ones you added. The choice applies to the rack, the album screen, and the insert animation.
+- Album-cover wallpaper behind the Player deck. Toggle the Wallpaper button to fill the space around the deck with the playing album's cover art; off by default, and the choice is remembered.
 - Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys.
 - Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
 - Mechanical sound. The transport keys click, the tape seats with a clunk when it drops into the deck, holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary and are swappable (see Assets).
@@ -101,9 +102,9 @@ Click **Open Folder** and point it at your music directory. The app scans it rec
 
 ## Usage and configuration
 
-State is saved to `~/.config/cosmic-cassette-deck/state`: music folder, volume, current colour skin, chosen and added backgrounds, and the last track and position for resume.
+State is saved to `~/.config/cosmic-cassette-deck/state`: music folder, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume.
 
-- Player: transport controls, seek, and volume. The Walkman colour button cycles the deck colour.
+- Player: transport controls, seek, and volume. The Walkman button cycles the deck colour, and the Wallpaper button toggles the album-cover backdrop behind the deck.
 - Cassette Rack: browse albums with the arrow keys. The backdrop controls cycle, add, and remove the room background. Click an album to open it.
 - Album screen: click the case, or the play button, to open it and insert the tape.
 
