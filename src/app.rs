@@ -28,6 +28,9 @@ use crate::case_open::{self, CaseOpenScene};
 
 const TICK: Duration = Duration::from_millis(16); // ~60 fps: keeps fast spool
 // rotation under the wagon-wheel aliasing limit of the spoked hubs
+/// Slow idle tick: a tape is loaded but paused/idle. Keeps position and state
+/// fresh (and self-heals a stale `playing` flag) without a 60 fps CPU burn.
+const HEARTBEAT: Duration = Duration::from_millis(250);
 const STATE_SAVE_EVERY: Duration = Duration::from_secs(5);
 /// How long the cassette-load animation plays before the player appears.
 const LOAD_ANIM: Duration = Duration::from_millis(850);
@@ -511,18 +514,26 @@ impl Application for App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        // Tick while a tape is loaded and not explicitly stopped. Gating on
-        // `self.playing` alone deadlocks: playing is only updated inside a
-        // Tick (status mirror), so one tick seeing a stale paused status
-        // (e.g. right after a wind-release Resume) kills the subscription
-        // permanently while audio plays on. A loaded, non-stopped deck must
-        // always tick; only an empty or stopped deck sleeps.
-        let active = (self.current.is_some() && !self.stopped)
-            || self.wind.is_some()
+        // Tick cadence has three tiers. Gating on `self.playing` alone
+        // deadlocks: playing is only updated inside a Tick (status mirror), so
+        // one tick seeing a stale paused status (e.g. right after a wind-release
+        // Resume) would kill the subscription permanently while audio plays on.
+        // Safety net: a loaded, non-stopped deck never fully sleeps — it keeps
+        // at least a slow heartbeat, so a stale `self.playing` self-heals within
+        // one HEARTBEAT (the next tick mirrors the real status and jumps back to
+        // 60 fps). Only an empty or stopped deck sleeps entirely.
+        //   - 60 fps while genuinely animating or playing,
+        //   - slow heartbeat while a tape is loaded but paused/idle,
+        //   - nothing when no tape is loaded.
+        let animating = self.wind.is_some()
             || self.skip_anim.is_some()
-            || matches!(self.screen, Screen::Loading { .. } | Screen::CaseOpen { .. });
-        let ticks = if active {
+            || matches!(self.screen, Screen::Loading { .. } | Screen::CaseOpen { .. })
+            || self.playing;
+        let has_tape = self.current.is_some() && !self.stopped;
+        let ticks = if animating {
             cosmic::iced::time::every(TICK).map(Message::Tick)
+        } else if has_tape {
+            cosmic::iced::time::every(HEARTBEAT).map(Message::Tick)
         } else {
             Subscription::none()
         };
