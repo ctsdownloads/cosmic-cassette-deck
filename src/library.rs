@@ -32,7 +32,7 @@ pub struct Album {
     pub tracks: Vec<Track>,
 }
 
-const AUDIO_EXTS: &[&str] = &["mp3", "flac", "ogg", "oga", "m4a", "wav"];
+const AUDIO_EXTS: &[&str] = &["mp3", "flac", "m4a", "wav"];
 
 /// Recursively scan `dir` for audio files and group them into albums.
 /// Returns (albums, count of matching files that could not be parsed).

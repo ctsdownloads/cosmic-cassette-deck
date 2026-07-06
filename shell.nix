@@ -1,5 +1,5 @@
 # Non-flake entry point: `nix-shell` in the project root.
-# Mirrors flake.nix devShell for classic NixOS config workflows.
+# The flakes equivalent is the devShell in flake.nix (`nix develop`).
 { pkgs ? import <nixpkgs> { } }:
 
 let

@@ -1232,7 +1232,7 @@ impl App {
             let body = container(
                 widget::column::with_children(vec![
                     text::title4("The rack is empty").into(),
-                    text::body("Open a folder of music (MP3, FLAC, OGG, M4A, WAV) to fill the rack.")
+                    text::body("Open a folder of music (MP3, FLAC, M4A, WAV) to fill the rack.")
                         .into(),
                     button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
                 ])

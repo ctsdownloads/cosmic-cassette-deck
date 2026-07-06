@@ -18,6 +18,7 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys.
 - Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
 - Mechanical sound. The transport keys click, the tape seats with a clunk when it drops into the deck, holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary and are swappable (see Assets).
+- About panel showing the version and a link to the project, reachable from the header on any screen.
 - MPRIS support for media keys, playerctl, and desktop panel controls.
 - Formats: MP3, FLAC, M4A/AAC, and WAV (rodio and symphonia).
 
