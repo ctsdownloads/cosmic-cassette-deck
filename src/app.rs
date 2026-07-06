@@ -34,6 +34,9 @@ const LOAD_ANIM: Duration = Duration::from_millis(850);
 /// How long the case-open → walkman animation plays before the player appears.
 const CASE_ANIM: Duration = Duration::from_millis(1600);
 
+/// Project home, shown in and opened from the About card.
+const REPO_URL: &str = "https://github.com/ctsdownloads/cosmic-cassette-deck";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Screen {
     Player,
@@ -88,6 +91,8 @@ pub enum Message {
     RemoveBackground,
     ArtLoaded(ArtResult),
     Mpris(MprisCmd),
+    ToggleAbout,
+    OpenRepo,
 }
 
 pub struct App {
@@ -95,6 +100,8 @@ pub struct App {
     screen: Screen,
     library: Vec<Album>,
     scanning: bool,
+    /// About card visible (a full-view panel over the current screen).
+    show_about: bool,
 
     /// Currently loaded (album_idx, track_idx), if a tape is in the deck.
     current: Option<(usize, usize)>,
@@ -454,6 +461,7 @@ impl Application for App {
             screen: Screen::Rack,
             library: Vec::new(),
             scanning: false,
+            show_about: false,
             current: None,
             audio_tx,
             status,
@@ -722,6 +730,11 @@ impl Application for App {
                 self.screen = Screen::Rack;
             }
             Message::ShowPlayer => self.screen = Screen::Player,
+            Message::ToggleAbout => self.show_about = !self.show_about,
+            Message::OpenRepo => {
+                // Hand the repo URL to the desktop's default browser.
+                let _ = std::process::Command::new("xdg-open").arg(REPO_URL).spawn();
+            }
             Message::LabelClicked => {
                 // Open the currently-playing album's art screen.
                 if let Some((album, _track)) = self.current {
@@ -940,6 +953,9 @@ impl Application for App {
     }
 
     fn view(&self) -> Element<Message> {
+        if self.show_about {
+            return self.about_view();
+        }
         let content = match self.screen {
             Screen::Player => self.player_view(),
             Screen::Rack => self.rack_view(),
@@ -971,6 +987,25 @@ impl Application for App {
 // ── Views ──────────────────────────────────────────────────────────────────
 
 impl App {
+    /// Full-view About card: app name, version, and a link to the repo.
+    fn about_view(&self) -> Element<Message> {
+        let card = widget::column::with_children(vec![
+            text::title2("Cassette Deck").into(),
+            text::body(format!("Version {}", env!("CARGO_PKG_VERSION"))).into(),
+            text::caption(REPO_URL).into(),
+            widget::row::with_children(vec![
+                button::suggested("Open on GitHub").on_press(Message::OpenRepo).into(),
+                button::standard("Close").on_press(Message::ToggleAbout).into(),
+            ])
+            .spacing(12)
+            .align_y(Alignment::Center)
+            .into(),
+        ])
+        .spacing(16)
+        .align_x(Alignment::Center);
+        container(card).center(Length::Fill).padding(24).into()
+    }
+
     fn loading_view(&self, started: Instant) -> Element<Message> {
         let t = (started.elapsed().as_secs_f32() / LOAD_ANIM.as_secs_f32()).clamp(0.0, 1.0);
         let scene = crate::loading::LoadingScene {
@@ -1133,6 +1168,7 @@ impl App {
         let mut nav_buttons: Vec<Element<Message>> = vec![
             button::standard("Music Rack").on_press(Message::ShowRack).into(),
             button::standard("Open Folder").on_press(Message::OpenFolder).into(),
+            button::standard("About").on_press(Message::ToggleAbout).into(),
         ];
         // Skin picker only when more than one skin exists (belt-only: hidden).
         if self.skins.len() > 1 {
@@ -1177,6 +1213,7 @@ impl App {
             button::standard("＋ Image").on_press(Message::PickBackground).into(),
             button::standard("🗑 Remove").on_press(Message::RemoveBackground).into(),
             button::standard("Player").on_press(Message::ShowPlayer).into(),
+            button::standard("About").on_press(Message::ToggleAbout).into(),
             button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
         ])
         .spacing(12)
@@ -1295,6 +1332,7 @@ impl App {
             widget::Space::new().width(Length::Fill).into(),
             button::suggested("Player").on_press(Message::ShowPlayer).into(),
             button::suggested("Music Rack").on_press(Message::ShowRack).into(),
+            button::standard("About").on_press(Message::ToggleAbout).into(),
             button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
         ])
         .spacing(12)
