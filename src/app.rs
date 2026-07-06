@@ -1328,11 +1328,13 @@ impl App {
 
         // Consistent top nav — same controls available as every other screen.
         let header = widget::row::with_children(vec![
-            text::title2("Music Rack").into(),
+            text::title2("Music Rack")
+                .class(cosmic::iced::Color::WHITE)
+                .into(),
             widget::Space::new().width(Length::Fill).into(),
             button::suggested("Player").on_press(Message::ShowPlayer).into(),
             button::suggested("Music Rack").on_press(Message::ShowRack).into(),
-            button::standard("About").on_press(Message::ToggleAbout).into(),
+            button::suggested("About").on_press(Message::ToggleAbout).into(),
             button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
         ])
         .spacing(12)

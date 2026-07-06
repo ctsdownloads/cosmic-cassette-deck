@@ -42,7 +42,7 @@
       {
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "cosmic-cassette-deck";
-          version = "0.0.6";
+          version = "0.0.7";
 
           src = ./.;
 
