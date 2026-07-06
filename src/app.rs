@@ -1328,8 +1328,18 @@ impl App {
 
         // Consistent top nav — same controls available as every other screen.
         let header = widget::row::with_children(vec![
-            text::title2("Music Rack")
-                .class(cosmic::iced::Color::WHITE)
+            container(text::title2("Music Rack").class(cosmic::iced::Color::WHITE))
+                .padding(8)
+                .style(|_theme| cosmic::iced::widget::container::Style {
+                    background: Some(cosmic::iced::Background::Color(
+                        cosmic::iced::Color::from_rgba(0.0, 0.0, 0.0, 0.55),
+                    )),
+                    border: cosmic::iced::Border {
+                        radius: 8.0.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
                 .into(),
             widget::Space::new().width(Length::Fill).into(),
             button::suggested("Player").on_press(Message::ShowPlayer).into(),
