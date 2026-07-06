@@ -1,6 +1,6 @@
 [package]
 name = "cosmic-cassette-deck"
-version = "0.0.10"
+version = "0.0.11"
 edition = "2021"
 description = "Photoreal 80s cassette player for local MP3s, built on libcosmic"
 license = "GPL-3.0-only"

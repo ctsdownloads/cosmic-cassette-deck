@@ -96,6 +96,7 @@ pub enum Message {
     Mpris(MprisCmd),
     ToggleAbout,
     OpenRepo,
+    ToggleBackdrop,
 }
 
 pub struct App {
@@ -131,6 +132,11 @@ pub struct App {
     /// Composed case sprites for the current fan window (centre first).
     fan_cases: Vec<cosmic::widget::image::Handle>,
     label_img: Option<cosmic::widget::image::Handle>,
+    /// Blurred album-cover backdrop shown behind the deck on the Player page.
+    player_backdrop: Option<cosmic::widget::image::Handle>,
+    /// Whether the Player draws the cover backdrop (toggled on the Player page,
+    /// persisted; off by default).
+    show_backdrop: bool,
     /// Pre-built handles for the cassette-load animation (empty deck + sprite).
     load_empty: cosmic::widget::image::Handle,
     load_sprite: cosmic::widget::image::Handle,
@@ -275,6 +281,24 @@ impl App {
         }
     }
 
+    /// Scraped cover for `album` if present, else the file's embedded art.
+    fn album_cover_bytes(&self, album: usize) -> Option<Vec<u8>> {
+        if let Some(b) = self.cover_bytes.get(&album) {
+            return Some((**b).clone());
+        }
+        self.library
+            .get(album)
+            .and_then(|a| a.art_bytes.as_ref())
+            .map(|b| (**b).clone())
+    }
+
+    /// (Re)build the blurred backdrop for the loaded album's cover. `None` when
+    /// no tape is loaded or its cover art hasn't arrived yet.
+    fn refresh_backdrop(&mut self) {
+        let bytes = self.current.and_then(|(album, _)| self.album_cover_bytes(album));
+        self.player_backdrop = bytes.and_then(|b| cover_backdrop(&b));
+    }
+
     fn load_track(&mut self, album: usize, track: usize) {
         let Some((path, song, album_name)) = self.library.get(album).and_then(|a| {
             a.tracks
@@ -285,6 +309,7 @@ impl App {
         };
         let _ = self.audio_tx.send(AudioCmd::Load(path));
         self.current = Some((album, track));
+        self.refresh_backdrop();
         self.position = Duration::ZERO;
         self.playing = true;
         self.stopped = false;
@@ -360,6 +385,7 @@ impl App {
         out.push_str(&format!("volume={}\n", self.volume));
         out.push_str(&format!("skin={}\n", self.skins[self.skin_idx].spec.id));
         out.push_str(&format!("bg_idx={}\n", self.bg_idx));
+        out.push_str(&format!("backdrop={}\n", self.show_backdrop as u8));
         let bg_files: Vec<String> = self
             .bg_sources
             .iter()
@@ -459,6 +485,8 @@ impl Application for App {
                 (blank.clone(), blank.clone(), blank)
             });
 
+        let show_backdrop = state.get("backdrop").map(|v| v == "1").unwrap_or(false);
+
         let mut app = App {
             core,
             screen: Screen::Rack,
@@ -479,6 +507,8 @@ impl Application for App {
             cover_bytes: std::collections::HashMap::new(),
             fan_cases: Vec::new(),
             label_img: None,
+            player_backdrop: None,
+            show_backdrop,
             load_empty: cosmic::widget::image::Handle::from_bytes(EMPTY_DECK_PNG.to_vec()),
             load_sprite: cosmic::widget::image::Handle::from_bytes(CASSETTE_SPRITE_PNG.to_vec()),
             case_tray,
@@ -683,6 +713,7 @@ impl Application for App {
                 self.library = albums;
                 let _ = self.audio_tx.send(AudioCmd::Stop);
                 self.current = None;
+                self.player_backdrop = None;
                 self.label_img = None;
                 self.playing = false;
                 self.stopped = false;
@@ -713,6 +744,11 @@ impl Application for App {
                 {
                     let bytes = std::sync::Arc::new(result.bytes);
                     self.cover_bytes.insert(idx, bytes.clone());
+                    // If this cover is for the tape currently in the deck,
+                    // rebuild its backdrop now that art has arrived.
+                    if self.current.map(|(a, _)| a) == Some(idx) {
+                        self.refresh_backdrop();
+                    }
                     self.library[idx].art = Some(
                         cosmic::widget::image::Handle::from_bytes((*bytes).clone()),
                     );
@@ -742,6 +778,10 @@ impl Application for App {
             }
             Message::ShowPlayer => self.screen = Screen::Player,
             Message::ToggleAbout => self.show_about = !self.show_about,
+            Message::ToggleBackdrop => {
+                self.show_backdrop = !self.show_backdrop;
+                self.save_state();
+            }
             Message::OpenRepo => {
                 // Hand the repo URL to the desktop's default browser.
                 let _ = std::process::Command::new("xdg-open").arg(REPO_URL).spawn();
@@ -974,11 +1014,22 @@ impl Application for App {
             Screen::Loading { started, .. } => self.loading_view(started),
             Screen::CaseOpen { started, .. } => self.case_open_view(started),
         };
-        // The 80s bedroom sits behind the Reveal screen. The rack draws its own
-        // dimmed bedroom in-canvas, and the Player is the self-contained jeans
-        // deck (a full scene of its own — a room behind it would clash).
-        if matches!(self.screen, Screen::Reveal(_) | Screen::CaseOpen { .. }) {
-            let bg = widget::image(self.current_bg().clone())
+        // Backdrop behind the content: the 80s bedroom behind Reveal/CaseOpen,
+        // and the blurred album cover behind the Player deck (shows around the
+        // letterboxed deck). The rack draws its own dimmed bedroom in-canvas.
+        let backdrop = match self.screen {
+            Screen::Player => {
+                if self.show_backdrop {
+                    self.player_backdrop.clone()
+                } else {
+                    None
+                }
+            }
+            Screen::Reveal(_) | Screen::CaseOpen { .. } => Some(self.current_bg().clone()),
+            _ => None,
+        };
+        if let Some(bg_handle) = backdrop {
+            let bg = widget::image(bg_handle)
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .content_fit(cosmic::iced::ContentFit::Cover);
@@ -1150,6 +1201,7 @@ impl App {
             on_eject: Message::ShowRack,
             on_label_click: Message::LabelClicked,
             skip_mode: self.skip_mode,
+            fill_letterbox: !(self.show_backdrop && self.player_backdrop.is_some()),
         };
 
         let deck = Canvas::new(scene).width(Length::Fill).height(Length::Fill);
@@ -1177,14 +1229,21 @@ impl App {
         .align_y(Alignment::Center);
 
         let mut nav_buttons: Vec<Element<Message>> = vec![
-            button::standard("Music Rack").on_press(Message::ShowRack).into(),
-            button::standard("Open Folder").on_press(Message::OpenFolder).into(),
-            button::standard("About").on_press(Message::ToggleAbout).into(),
+            button::suggested("Music Rack").on_press(Message::ShowRack).into(),
+            button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
+            button::suggested("About").on_press(Message::ToggleAbout).into(),
+            button::suggested(if self.show_backdrop {
+                "Wallpaper: On"
+            } else {
+                "Wallpaper: Off"
+            })
+            .on_press(Message::ToggleBackdrop)
+            .into(),
         ];
         // Skin picker only when more than one skin exists (belt-only: hidden).
         if self.skins.len() > 1 {
             nav_buttons.push(
-                button::standard(format!("Walkman: {} ⟳", self.skins[self.skin_idx].spec.name))
+                button::suggested(format!("Walkman: {} ⟳", self.skins[self.skin_idx].spec.name))
                     .on_press(Message::CycleSkin)
                     .into(),
             );
@@ -1432,6 +1491,14 @@ impl App {
 /// Streams media-key commands out of the MPRIS thread into the update loop.
 /// Stable identity for an album, shared by the scraper cache and result match.
 /// Raw bytes of the transparent case sprite, for compositing covers.
+/// Decode cover art into a full-window backdrop handle. Runs once per track
+/// load, not per frame.
+fn cover_backdrop(bytes: &[u8]) -> Option<cosmic::widget::image::Handle> {
+    let rgba = image::load_from_memory(bytes).ok()?.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    Some(cosmic::widget::image::Handle::from_rgba(w, h, rgba.into_raw()))
+}
+
 const CASE_T_PNG: &[u8] = include_bytes!("../assets/case_transparent.png");
 /// Empty-deck image + transparent cassette sprite for the load animation.
 const EMPTY_DECK_PNG: &[u8] = include_bytes!("../assets/skins/belt/empty.png");

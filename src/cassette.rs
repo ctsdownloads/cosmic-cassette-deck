@@ -263,6 +263,9 @@ pub struct CassetteScene<'a, Message> {
     /// Clicking the cassette's label strip opens the album's art screen.
     pub on_label_click: Message,
     pub skip_mode: bool,
+    /// Fill the letterbox with the charcoal field. False when a backdrop sits
+    /// behind the deck -- then leave it transparent so the backdrop shows.
+    pub fill_letterbox: bool,
 }
 
 impl<'a, Message> CassetteScene<'a, Message> {
@@ -387,12 +390,15 @@ impl<'a, Message: Clone> canvas::Program<Message, cosmic::Theme, cosmic::Rendere
 
         // 0) Deliberate dark field behind the deck (fills the letterbox space
         //    around the fixed-size photo with an intentional charcoal instead
-        //    of the theme's default grey).
-        frame.fill_rectangle(
-            cosmic::iced::Point::ORIGIN,
-            bounds.size(),
-            cosmic::iced::Color::from_rgb(0.09, 0.09, 0.11),
-        );
+        //    of the theme's default grey). Skipped when a backdrop sits behind
+        //    the deck, so the letterbox stays transparent and it shows through.
+        if self.fill_letterbox {
+            frame.fill_rectangle(
+                cosmic::iced::Point::ORIGIN,
+                bounds.size(),
+                cosmic::iced::Color::from_rgb(0.09, 0.09, 0.11),
+            );
+        }
 
         // 1) Photographic body.
         frame.draw_image(
