@@ -60,22 +60,23 @@ Run every command below from inside this `cosmic-cassette-deck` directory.
 
 **On a normal distro** - install Rust with [rustup](https://rustup.rs), then the system libraries for your package manager:
 
-Debian and Ubuntu:
+Ubuntu (24.04 / 26.04):
 
 ```sh
 sudo apt install build-essential pkg-config libasound2-dev libwayland-dev libxkbcommon-dev mesa-vulkan-drivers
 ```
 
-Fedora:
+Fedora (44):
 
 ```sh
-sudo dnf install gcc pkg-config alsa-lib-devel wayland-devel libxkbcommon-devel vulkan-loader
+sudo dnf install gcc pkg-config alsa-lib-devel wayland-devel libxkbcommon-devel vulkan-loader mesa-vulkan-drivers
 ```
 
-Arch:
+Arch (rolling):
 
 ```sh
 sudo pacman -S base-devel pkg-config alsa-lib wayland libxkbcommon vulkan-icd-loader
+# plus your GPU's Vulkan driver: vulkan-radeon, vulkan-intel, or nvidia-utils
 ```
 
 Package names vary, but in all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, and a Vulkan driver plus loader. The app runs under Wayland, and wgpu needs a Vulkan-capable GPU. File dialogs use the XDG desktop portal through rfd; COSMIC already ships xdg-desktop-portal-cosmic, other desktops need their own portal backend.

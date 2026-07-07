@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "cosmic-cassette-deck"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "ab_glyph",
  "image",
