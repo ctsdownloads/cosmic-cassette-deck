@@ -1,8 +1,8 @@
 [package]
 name = "cosmic-cassette-deck"
-version = "0.0.12"
+version = "0.0.13"
 edition = "2021"
-description = "Photoreal 80s cassette player for local MP3s, built on libcosmic"
+description = "Photoreal 80s cassette player for local music, built on libcosmic"
 license = "GPL-3.0-only"
 repository = "https://github.com/ctsdownloads/cosmic-cassette-deck"
 readme = "README.md"
@@ -19,7 +19,7 @@ path = "src/main.rs"
 # enabled internally, so there are NO user-facing "canvas"/"image" features to
 # request (asking for them is a build error). Defaults cover winit, wayland,
 # tokio, a11y; we add the wgpu renderer. Pin a git rev once it builds.
-libcosmic = { git = "https://github.com/pop-os/libcosmic", features = ["wgpu"] }
+libcosmic = { git = "https://github.com/pop-os/libcosmic", rev = "ee5d965983957271cf759fd76e3e4eed4f188d35", features = ["wgpu"] }
 
 # Audio playback. 0.20 API: OutputStream::try_default + Sink::try_new +
 # get_pos/try_seek. (0.21 moved to OutputStreamBuilder; migrate deliberately.)

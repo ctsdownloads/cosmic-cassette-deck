@@ -5,7 +5,7 @@ A photoreal 1980s portable cassette player for your local music library. A nativ
 The deck is a photograph, and the app draws the living parts on top every frame: spinning reels with real spool physics, a rasterized track label, and transport keys that travel down into the chassis. Click a cassette case and it swings open, the tape lifts out, and it drops into the walkman. Recolor the deck and swap the room behind it.
 
 <p align="center">
-  <img src="docs/player-silver.png" alt="The photoreal cassette deck playing a track" width="760">
+  <img src="docs/player-denim.png" alt="The photoreal cassette deck playing a track" width="760">
 </p>
 
 ## Features

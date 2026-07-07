@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
-const USER_AGENT: &str = "CosmicCassetteDeck/0.3 (github.com/ctsdownloads)";
+const USER_AGENT: &str = "CosmicCassetteDeck (github.com/ctsdownloads)";
 const MB_MIN_INTERVAL: Duration = Duration::from_millis(1500); // gentle; avoids throttle
 const HTTP_TIMEOUT: Duration = Duration::from_secs(8);
 
