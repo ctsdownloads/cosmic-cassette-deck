@@ -54,3 +54,56 @@ serde_json = "1"
 
 [profile.release]
 lto = "thin"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Distro packaging metadata — append ONCE to the end of Cargo.toml.
+# Feeds cargo-deb (.deb) and cargo-generate-rpm (.rpm) in CI.
+# name / version / license are read from [package] above; only packaging-
+# specific bits (assets + runtime deps) live here.
+#
+# Verified against THIS repo:
+#   binary  -> cosmic-cassette-deck            ([[bin]] name)
+#   desktop -> res/io.github.ctsdownloads.CosmicCassetteDeck.desktop
+#   icon    -> res/io.github.ctsdownloads.CosmicCassetteDeck.svg
+#   LICENSE -> repo root (cargo-deb auto-detects it -> copyright file)
+# Runtime deps reflect real linkage: rodio->ALSA, wayland-client, libxkbcommon
+# (winit keymap), and wgpu which DLOPENS the Vulkan loader at runtime.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[package.metadata.deb]
+maintainer = "ctsdownloads <ctsdownloads@users.noreply.github.com>"
+copyright = "2026 ctsdownloads, GPL-3.0-only"
+section = "sound"
+priority = "optional"
+extended-description = "Photorealistic 80s cassette player for local music, built as a native COSMIC/libcosmic application."
+assets = [
+    ["target/release/cosmic-cassette-deck", "usr/bin/", "755"],
+    ["res/io.github.ctsdownloads.CosmicCassetteDeck.desktop", "usr/share/applications/", "644"],
+    ["res/io.github.ctsdownloads.CosmicCassetteDeck.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+]
+# $auto = dpkg-shlibdeps for LINKED libs (libasound2, libc6, libgcc-s1, ...).
+# wgpu dlopens libvulkan and winit dlopens libxkbcommon/wayland, so shlibdeps
+# can't see those -> list them by hand.
+depends = "$auto, libwayland-client0, libxkbcommon0, libvulkan1"
+# A real Vulkan ICD so it renders on a clean install (mesa also ships the
+# lavapipe software fallback). Kept as Recommends: apt installs it by default,
+# and an NVIDIA-proprietary user with their own ICD can drop it.
+recommends = "mesa-vulkan-drivers"
+
+[package.metadata.generate-rpm]
+summary = "Photorealistic 80s cassette player for local music"
+assets = [
+    { source = "target/release/cosmic-cassette-deck", dest = "/usr/bin/cosmic-cassette-deck", mode = "755" },
+    { source = "res/io.github.ctsdownloads.CosmicCassetteDeck.desktop", dest = "/usr/share/applications/io.github.ctsdownloads.CosmicCassetteDeck.desktop", mode = "644" },
+    { source = "res/io.github.ctsdownloads.CosmicCassetteDeck.svg", dest = "/usr/share/icons/hicolor/scalable/apps/io.github.ctsdownloads.CosmicCassetteDeck.svg", mode = "644" },
+]
+
+# Fedora package names. vulkan-loader provides libvulkan.so.1. mesa-vulkan-drivers
+# is a hard Requires on Fedora (near-universal, includes lavapipe fallback) to
+# guarantee a working ICD without depending on weak-dep support in the tool.
+[package.metadata.generate-rpm.requires]
+alsa-lib = "*"
+libwayland-client = "*"
+libxkbcommon = "*"
+vulkan-loader = "*"
+mesa-vulkan-drivers = "*"
