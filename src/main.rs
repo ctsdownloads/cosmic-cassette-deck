@@ -11,27 +11,30 @@ mod case_open;
 mod artscrape;
 
 fn main() -> cosmic::iced::Result {
-    // libcosmic draws the header-bar window controls as XDG icon lookups
-    // (window-minimize-symbolic / window-maximize-symbolic / window-close-symbolic)
-    // against icon theme "Cosmic". Off COSMIC that theme isn't installed, so the
-    // buttons still exist and are clickable but render blank.
+    // Portrait window to match the skin's aspect (843×1264 + controls below).
+    let mut settings = cosmic::app::Settings::default()
+        .size(cosmic::iced::Size::new(560.0, 1020.0))
+        .size_limits(cosmic::iced::Limits::NONE.min_width(420.0).min_height(760.0));
+
+    // libcosmic draws the header-bar window controls (minimize / maximize / close)
+    // as XDG icon lookups against icon theme "Cosmic". Off COSMIC that theme isn't
+    // installed, so the buttons exist and stay clickable but render blank -- an
+    // empty header strip.
     //
-    // Adwaita ships all four (incl. window-restore-symbolic) and is present on
-    // GNOME/Fedora/Ubuntu. libcosmic searches [chosen theme, "Cosmic"] in order,
-    // so "Cosmic" remains the fallback for anything Adwaita lacks. Skipped under
-    // COSMIC so its own icon theme keeps priority there.
+    // This MUST go through Settings, not cosmic::icon_theme::set_default(): run()
+    // internally calls set_default(config::icon_theme()) and overwrites any earlier
+    // call. Settings::default_icon_theme also sets core.icon_theme_override, so a
+    // later ToolkitConfig event can't reset it either.
+    //
+    // Lookup order is [chosen theme, "Cosmic"], so "Cosmic" remains the fallback.
+    // Skipped under COSMIC so its own icon theme keeps priority there.
     if !std::env::var("XDG_CURRENT_DESKTOP")
         .unwrap_or_default()
         .to_ascii_uppercase()
         .contains("COSMIC")
     {
-        cosmic::icon_theme::set_default("Adwaita");
+        settings = settings.default_icon_theme("Adwaita");
     }
-
-    // Portrait window to match the skin's aspect (843×1264 + controls below).
-    let settings = cosmic::app::Settings::default()
-        .size(cosmic::iced::Size::new(560.0, 1020.0))
-        .size_limits(cosmic::iced::Limits::NONE.min_width(420.0).min_height(760.0));
 
     cosmic::app::run::<app::App>(settings, ())
 }

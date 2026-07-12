@@ -1,6 +1,6 @@
 [package]
 name = "cosmic-cassette-deck"
-version = "0.0.14"
+version = "0.0.15"
 edition = "2021"
 description = "Photoreal 80s cassette player for local music, built on libcosmic"
 license = "GPL-3.0-only"
@@ -84,7 +84,7 @@ assets = [
 # $auto = dpkg-shlibdeps for LINKED libs (libasound2, libc6, libgcc-s1, ...).
 # wgpu dlopens libvulkan and winit dlopens libxkbcommon/wayland, so shlibdeps
 # can't see those -> list them by hand.
-depends = "$auto, libwayland-client0, libxkbcommon0, libvulkan1"
+depends = "$auto, libwayland-client0, libxkbcommon0, libvulkan1, adwaita-icon-theme"
 # A real Vulkan ICD so it renders on a clean install (mesa also ships the
 # lavapipe software fallback). Kept as Recommends: apt installs it by default,
 # and an NVIDIA-proprietary user with their own ICD can drop it.
@@ -107,3 +107,4 @@ libwayland-client = "*"
 libxkbcommon = "*"
 vulkan-loader = "*"
 mesa-vulkan-drivers = "*"
+adwaita-icon-theme = "*"
