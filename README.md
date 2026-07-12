@@ -41,11 +41,35 @@ Five colour skins cycle from the Player with the Walkman button: the same photog
 
 ![Red skin](docs/player-red.png)
 
+## Install
+
+Packages for the latest release are on the [Releases page](https://github.com/ctsdownloads/cosmic-cassette-deck/releases). Download the one for your distro, then install it from the directory you saved it in.
+
+Ubuntu (24.04 and newer):
+
+```sh
+sudo apt install ./cosmic-cassette-deck_*_amd64.deb
+```
+
+Fedora (44 and newer):
+
+```sh
+sudo dnf install ./cosmic-cassette-deck-*.x86_64.rpm
+```
+
+Either one pulls in what the app needs at runtime - ALSA, Wayland, libxkbcommon, the Vulkan loader and driver, and the Adwaita icon theme - and adds **Cassette Deck** to your app menu.
+
+NixOS: don't use these. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) walks through adding this repo to your own system flake, so Nix builds and installs it as a normal package that persists across `nixos-rebuild`.
+
+### Running outside COSMIC
+
+It is a native COSMIC app, but it runs on any Wayland desktop - GNOME, KDE Plasma, and the rest. On those, it draws its titlebar's minimize, maximize, and close buttons from the Adwaita icon theme, because the COSMIC icon theme isn't installed there and the buttons would otherwise render blank. The packages depend on Adwaita, so an installed package just works. If you build from source, install it yourself; it is in the dependency lists below.
+
 ## Building from source
 
 You need the Rust toolchain plus a few system libraries, then a single `cargo` build. There are two ways to get that environment: a normal distro with rustup, or NixOS using the dev shell this repo ships. Both finish at the same build step.
 
-**If you run NixOS, you most likely want the packaged install rather than building by hand.** [NIXOS_INSTALL.md](NIXOS_INSTALL.md) walks through adding this repo to your own system flake so Nix builds and installs it as a normal package: it then shows up in the COSMIC app library (and any freedesktop app menu) as "Cassette Deck", launches like anything else, and persists across `nixos-rebuild`. That route needs no clone and no cargo. Use the steps below only if you specifically want to compile it yourself or hack on the source; they leave a binary inside your checkout, not a system-wide install.
+**Most people want the packaged install above, not this.** The steps below leave a binary inside your checkout rather than a system-wide install; use them if you specifically want to compile it yourself or hack on the source.
 
 ### 1. Clone the repo
 
@@ -63,23 +87,23 @@ Run every command below from inside this `cosmic-cassette-deck` directory.
 Ubuntu (24.04 / 26.04):
 
 ```sh
-sudo apt install build-essential pkg-config libasound2-dev libwayland-dev libxkbcommon-dev mesa-vulkan-drivers
+sudo apt install build-essential pkg-config libasound2-dev libwayland-dev libxkbcommon-dev mesa-vulkan-drivers adwaita-icon-theme
 ```
 
 Fedora (44):
 
 ```sh
-sudo dnf install gcc pkg-config alsa-lib-devel wayland-devel libxkbcommon-devel vulkan-loader mesa-vulkan-drivers
+sudo dnf install gcc pkg-config alsa-lib-devel wayland-devel libxkbcommon-devel vulkan-loader mesa-vulkan-drivers adwaita-icon-theme
 ```
 
 Arch (rolling):
 
 ```sh
-sudo pacman -S base-devel pkg-config alsa-lib wayland libxkbcommon vulkan-icd-loader
+sudo pacman -S base-devel pkg-config alsa-lib wayland libxkbcommon vulkan-icd-loader adwaita-icon-theme
 # plus your GPU's Vulkan driver: vulkan-radeon, vulkan-intel, or nvidia-utils
 ```
 
-Package names vary, but in all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, and a Vulkan driver plus loader. The app runs under Wayland, and wgpu needs a Vulkan-capable GPU. File dialogs use the XDG desktop portal through rfd; COSMIC already ships xdg-desktop-portal-cosmic, other desktops need their own portal backend.
+Package names vary, but in all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, a Vulkan driver plus loader, and - on any desktop that is not COSMIC - the Adwaita icon theme, for the reason given above. The app runs under Wayland, and wgpu needs a Vulkan-capable GPU. File dialogs use the XDG desktop portal through rfd; COSMIC already ships xdg-desktop-portal-cosmic, other desktops need their own portal backend.
 
 **On NixOS** - you don't install these libraries system-wide (that isn't how NixOS works). Instead, enter the dev shell this repo ships. It puts the full Rust toolchain and every library listed above onto your PATH for the life of that shell only, so nothing is written into your system configuration:
 
