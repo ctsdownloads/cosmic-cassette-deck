@@ -42,7 +42,7 @@
       {
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "cosmic-cassette-deck";
-          version = "0.0.15";
+          version = "0.0.16";
 
           src = ./.;
 
@@ -71,7 +71,8 @@
 
           postFixup = ''
             wrapProgram $out/bin/cosmic-cassette-deck \
-              --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs}
+              --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs} \
+              --suffix XDG_DATA_DIRS : ${pkgs.adwaita-icon-theme}/share
           '';
 
           meta = {

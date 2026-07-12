@@ -105,7 +105,7 @@ sudo pacman -S base-devel pkg-config alsa-lib wayland libxkbcommon vulkan-icd-lo
 
 Package names vary, but in all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, a Vulkan driver plus loader, and - on any desktop that is not COSMIC - the Adwaita icon theme, for the reason given above. The app runs under Wayland, and wgpu needs a Vulkan-capable GPU. File dialogs use the XDG desktop portal through rfd; COSMIC already ships xdg-desktop-portal-cosmic, other desktops need their own portal backend.
 
-**On NixOS** - you don't install these libraries system-wide (that isn't how NixOS works). Instead, enter the dev shell this repo ships. It puts the full Rust toolchain and every library listed above onto your PATH for the life of that shell only, so nothing is written into your system configuration:
+**On NixOS** - you don't install these libraries system-wide (that isn't how NixOS works). Instead, enter the dev shell this repo ships. It puts the full Rust toolchain and every build library listed above onto your PATH for the life of that shell only, so nothing is written into your system configuration. (The Adwaita icon theme is not a build dependency: the Nix package wires it in at runtime, and under COSMIC it isn't needed at all.)
 
 ```sh
 nix develop        # flakes; or `nix-shell` on classic Nix

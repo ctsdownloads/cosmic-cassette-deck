@@ -48,3 +48,4 @@ The binary installs into the Nix store and is wrapped with the right `LD_LIBRARY
 
 - The desktop entry is a standard application launcher (`Type=Application`, audio/player categories).
 - One binary is produced, `cosmic-cassette-deck`; the app menu launches it from its Nix store path.
+- Outside COSMIC (GNOME, KDE Plasma, and the rest), the wrapper adds the Adwaita icon theme to `XDG_DATA_DIRS`, so the window's minimize, maximize, and close buttons render. The COSMIC icon theme those buttons normally come from isn't installed on other desktops, and without this they draw blank.
