@@ -19,7 +19,7 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys.
 - Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
 - Mechanical sound. The transport keys click, the tape seats with a clunk when it drops into the deck, holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary; if you build from source you can swap them for your own (see Assets).
-- About panel showing the version and a link to the project, reachable from the header on any screen.
+- About panel showing the version and a link to the project, reachable from the header on the Player, the Cassette Rack, and the album screen.
 - MPRIS support for media keys, playerctl, and desktop panel controls.
 - Formats: MP3, FLAC, M4A/AAC, and WAV (rodio and symphonia).
 
@@ -172,7 +172,7 @@ sudo pacman -S base-devel pkg-config alsa-lib wayland libxkbcommon vulkan-icd-lo
 
 Package names vary, but in all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, a Vulkan driver plus loader, and - on any desktop that is not COSMIC - the Adwaita icon theme, for the reason given above. The app runs under Wayland, and wgpu needs a Vulkan-capable GPU. File dialogs use the XDG desktop portal through rfd; COSMIC already ships xdg-desktop-portal-cosmic, other desktops need their own portal backend.
 
-**On NixOS** - installing libraries system-wide isn't how NixOS works. Enter the dev shell this repo ships instead. It puts the Rust toolchain and every build library above onto your PATH for the life of that shell only, and writes nothing into your system configuration:
+**On NixOS** - installing libraries system-wide isn't how NixOS works. Enter the dev shell this repo ships instead. It puts the Rust toolchain on your PATH and wires the build libraries above into the environment - `PKG_CONFIG_PATH` so cargo finds them, `LD_LIBRARY_PATH` so the binary runs - for the life of that shell only. Nothing is written into your system configuration:
 
 ```sh
 nix develop        # flakes; or `nix-shell` on classic Nix
