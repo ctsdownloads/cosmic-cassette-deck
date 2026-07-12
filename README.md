@@ -18,7 +18,7 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Album-cover wallpaper behind the Player deck. Toggle the Wallpaper button to fill the space around the deck with the playing album's cover art; off by default, and the choice is remembered.
 - Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys.
 - Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
-- Mechanical sound. The transport keys click, the tape seats with a clunk when it drops into the deck, holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary and are swappable (see Assets).
+- Mechanical sound. The transport keys click, the tape seats with a clunk when it drops into the deck, holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary; if you build from source you can swap them for your own (see Assets).
 - About panel showing the version and a link to the project, reachable from the header on any screen.
 - MPRIS support for media keys, playerctl, and desktop panel controls.
 - Formats: MP3, FLAC, M4A/AAC, and WAV (rodio and symphonia).
@@ -75,7 +75,7 @@ Either one pulls in what the app needs at runtime - ALSA, Wayland, libxkbcommon,
 
 The `.deb` and `.rpm` are x86_64 only. On ARM (aarch64), use the Nix package or build from source; both support it.
 
-**NixOS** - the `.deb` and `.rpm` are no use to you. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) is your install route: add this repo to your system flake, and Nix compiles the app and installs it as a normal package - in your app menu, persisting across `nixos-rebuild`. You never run cargo and you keep no checkout.
+**NixOS** - the `.deb` and `.rpm` are no use to you. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) is your install route, and it covers three: `nix run` to try the app without installing it, `nix profile install` to install it with a single command, or adding it to your system flake so it is declarative and survives a rebuild. Nix compiles the app in all three cases; you never run cargo and you keep no checkout.
 
 ### Running outside COSMIC
 
@@ -169,7 +169,7 @@ Rust, libcosmic (its vendored iced fork, wgpu renderer, Wayland and winit), rodi
 
 Skin art lives in `assets/`, and the colour skins are recolored variants of the base deck.
 
-Sound effects are FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, and `end_clack`. They are embedded in the binary at build time, so to change the sound, replace a clip with your own recording under the same name and rebuild. Only `wind_loop` repeats; it is stitched seamless in code, so any length works.
+Sound effects are FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, and `end_clack`. They are compiled into the binary, so swapping them means building from source: replace a clip with your own recording under the same name and rebuild. (An installed `.deb` or `.rpm` has them baked in - there is no file on disk to change.) Only `wind_loop` repeats; it is stitched seamless in code, so any length works.
 
 ## License
 
