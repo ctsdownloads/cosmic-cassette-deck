@@ -93,7 +93,9 @@ The bundle is sandboxed and ships its own icon theme, so the window controls ren
 
 ### Running outside COSMIC
 
-It is a native COSMIC app, but it runs on any Wayland desktop - GNOME, KDE Plasma, and the rest. On those, it draws its titlebar's minimize, maximize, and close buttons from the Adwaita icon theme, because the COSMIC icon theme isn't installed there and the buttons would otherwise render blank. The packages depend on Adwaita, so an installed package just works. If you build from source, install it yourself; it is in the dependency lists below.
+It is a native COSMIC app, but it runs on any Wayland desktop - GNOME, KDE Plasma, and the rest. On those, it draws its titlebar's minimize, maximize, and close buttons from the Adwaita icon theme, because the COSMIC icon theme isn't installed there and the buttons would otherwise render blank. The packages depend on Adwaita, so an installed package just works, and the Flatpak carries its own icon theme. If you build from source, install Adwaita yourself; it is in the dependency lists below.
+
+On KDE Plasma this means those three buttons are drawn Adwaita-style rather than Breeze - slightly out of place next to the rest of your desktop, but working. Adwaita is used everywhere off COSMIC because it is the one icon theme guaranteed to be installable on every distro and to carry the icon names libcosmic asks for; mapping each desktop to its own theme would trade a cosmetic mismatch for buttons that vanish again.
 
 ## Using it
 
