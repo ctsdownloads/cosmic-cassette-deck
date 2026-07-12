@@ -15,7 +15,7 @@
 
         config = lib.mkIf config.services.cosmic-cassette-deck.enable {
           environment.systemPackages = [
-            self.packages.${pkgs.system}.default
+            self.packages.${pkgs.stdenv.hostPlatform.system}.default
           ];
         };
       };
@@ -42,7 +42,7 @@
       {
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "cosmic-cassette-deck";
-          version = "0.0.16";
+          version = "0.0.17";
 
           src = ./.;
 

@@ -43,6 +43,11 @@ Five colour skins cycle from the Player with the Walkman button: the same photog
 
 ## Install
 
+There are two separate sets of instructions in this README, and they do different things:
+
+- **Install a package** (this section) - the app is already built for you. It installs system-wide, lands in your app menu as **Cassette Deck**, pulls in its own dependencies, and survives reboots and updates. No clone, no Rust, no compiling. This is what almost everyone wants.
+- **[Build from source](#building-from-source)** (further down) - you clone the repo and compile it yourself. The binary sits inside your checkout, is not installed system-wide, and does not appear in your app menu. For hacking on the code, or for a distro with no package here.
+
 Packages for the latest release are on the [Releases page](https://github.com/ctsdownloads/cosmic-cassette-deck/releases). Download the one for your distro, then install it from the directory you saved it in.
 
 Ubuntu (24.04 and newer):
@@ -59,7 +64,9 @@ sudo dnf install ./cosmic-cassette-deck-*.x86_64.rpm
 
 Either one pulls in what the app needs at runtime - ALSA, Wayland, libxkbcommon, the Vulkan loader and driver, and the Adwaita icon theme - and adds **Cassette Deck** to your app menu.
 
-NixOS: don't use these. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) walks through adding this repo to your own system flake, so Nix builds and installs it as a normal package that persists across `nixos-rebuild`.
+The `.deb` and `.rpm` are x86_64 only. On ARM (aarch64), use the Nix package or build from source; both support it.
+
+**NixOS** - the `.deb` and `.rpm` are no use to you. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) is the install route: it adds this repo to your system flake, so Nix builds and installs it as a normal package that lands in your app menu and persists across `nixos-rebuild`. (NixOS also appears under Building from source below - that is the *other* set, for compiling it yourself. Different job.)
 
 ### Running outside COSMIC
 
@@ -67,9 +74,11 @@ It is a native COSMIC app, but it runs on any Wayland desktop - GNOME, KDE Plasm
 
 ## Building from source
 
-You need the Rust toolchain plus a few system libraries, then a single `cargo` build. There are two ways to get that environment: a normal distro with rustup, or NixOS using the dev shell this repo ships. Both finish at the same build step.
+This is the second set of instructions - the one that does **not** install the app. You clone the repo and compile it; the binary ends up in `target/release/` inside your checkout. It is not installed system-wide and it will not appear in your app menu. If you just want to use the app, go back to [Install](#install).
 
-**Most people want the packaged install above, not this.** The steps below leave a binary inside your checkout rather than a system-wide install; use them if you specifically want to compile it yourself or hack on the source.
+Use this if you want to hack on the code, or if your distro has no package above.
+
+You need the Rust toolchain plus a few system libraries, then a single `cargo` build. There are two ways to get that environment: a normal distro with rustup, or NixOS using the dev shell this repo ships. Both finish at the same build step.
 
 ### 1. Clone the repo
 
@@ -105,13 +114,15 @@ sudo pacman -S base-devel pkg-config alsa-lib wayland libxkbcommon vulkan-icd-lo
 
 Package names vary, but in all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, a Vulkan driver plus loader, and - on any desktop that is not COSMIC - the Adwaita icon theme, for the reason given above. The app runs under Wayland, and wgpu needs a Vulkan-capable GPU. File dialogs use the XDG desktop portal through rfd; COSMIC already ships xdg-desktop-portal-cosmic, other desktops need their own portal backend.
 
-**On NixOS** - you don't install these libraries system-wide (that isn't how NixOS works). Instead, enter the dev shell this repo ships. It puts the full Rust toolchain and every build library listed above onto your PATH for the life of that shell only, so nothing is written into your system configuration. (The Adwaita icon theme is not a build dependency: the Nix package wires it in at runtime, and under COSMIC it isn't needed at all.)
+**On NixOS** - installing libraries system-wide isn't how NixOS works. Enter the dev shell this repo ships instead. It puts the Rust toolchain and every build library above onto your PATH for the life of that shell only, and writes nothing into your system configuration:
 
 ```sh
 nix develop        # flakes; or `nix-shell` on classic Nix
 ```
 
-Your shell prompt changes to show you are inside it; run step 3 from in there. Leaving the shell (Ctrl-D) takes the toolchain back out again, but the compiled binary under `target/release/` stays put.
+Run step 3 from inside it - `cargo build` outside the shell will fail, because none of those libraries are on the system. Leaving the shell (Ctrl-D) takes the toolchain back out again, but the compiled binary under `target/release/` stays put.
+
+(To *install* the app on NixOS rather than compile it, you want [NIXOS_INSTALL.md](NIXOS_INSTALL.md), not this.)
 
 ### 3. Build and run
 
