@@ -10,3 +10,5 @@
 *.swp
 *~
 .DS_Store
+build-dir/
+.flatpak-builder/
