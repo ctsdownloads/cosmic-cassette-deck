@@ -1,0 +1,96 @@
+app-id: io.github.ctsdownloads.CosmicCassetteDeck
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.llvm21
+command: cosmic-cassette-deck
+
+finish-args:
+  # Wayland, with the usual X11 fallback.
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # wgpu dlopens the Vulkan loader at runtime and needs the GPU.
+  - --device=dri
+  # rodio -> ALSA, bridged to the host sound server by the runtime.
+  - --socket=pulseaudio
+  # MPRIS: media keys, playerctl, panel controls. Bus name comes straight from
+  # mpris_server::Player::builder("io.github.ctsdownloads.CosmicCassetteDeck").
+  - --own-name=org.mpris.MediaPlayer2.io.github.ctsdownloads.CosmicCassetteDeck
+  # Album-art scraping (MusicBrainz / Cover Art Archive) over ureq.
+  - --share=network
+  # The music library. Picking the folder goes through the portal, but the app
+  # rescans the saved path on every launch, so it needs standing read access.
+  - --filesystem=xdg-music:ro
+  # libcosmic reads COSMIC's toolkit/theme config where it exists.
+  - --filesystem=xdg-config/cosmic:ro
+  - --talk-name=com.system76.CosmicSettingsDaemon
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm21/bin
+  env:
+    CARGO_HOME: /run/build/cosmic-cassette-deck/cargo
+    CARGO_NET_OFFLINE: 'true'
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: clang
+    CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: -C link-arg=-fuse-ld=/usr/lib/sdk/rust-stable/bin/mold
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: clang
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS: -C link-arg=-fuse-ld=/usr/lib/sdk/rust-stable/bin/mold
+
+modules:
+  # Only here because cosmic-icons installs itself with a justfile.
+  - name: just
+    buildsystem: simple
+    build-commands:
+      - install -Dm0755 just /app/bin/just
+    sources:
+      - type: archive
+        strip-components: 0
+        dest-filename: just.tar.gz
+        url: https://github.com/casey/just/releases/download/1.46.0/just-1.46.0-x86_64-unknown-linux-musl.tar.gz
+        sha256: 79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa
+        only-arches:
+          - x86_64
+      - type: archive
+        strip-components: 0
+        dest-filename: just.tar.gz
+        url: https://github.com/casey/just/releases/download/1.46.0/just-1.46.0-aarch64-unknown-linux-musl.tar.gz
+        sha256: b81970c8247fa64cfb30d2a3da0e487e4253f9f2d01865ed5e7d53cdc7b02188
+        only-arches:
+          - aarch64
+
+  # The COSMIC icon theme, bundled into the sandbox.
+  #
+  # This is what makes the header-bar minimize/maximize/close buttons render.
+  # org.freedesktop.Platform ships no Adwaita, so the "Adwaita" theme our
+  # main.rs asks for off-COSMIC is not there - but libcosmic looks up
+  # [chosen theme, "Cosmic"], so it falls through to this and finds the icons.
+  # Result: the buttons work on every desktop inside the Flatpak, with no code
+  # change. Do not drop this module.
+  - name: cosmic-icons
+    buildsystem: simple
+    build-commands:
+      - just prefix=/app install
+    sources:
+      - type: git
+        url: https://github.com/pop-os/cosmic-icons.git
+        commit: b78b059636ed967ad7c6f120709c7d29b2bafac1
+
+  - name: cosmic-cassette-deck
+    buildsystem: simple
+    build-commands:
+      - cargo --offline build --release
+      - install -Dm0755 target/release/cosmic-cassette-deck /app/bin/cosmic-cassette-deck
+      - install -Dm0644 res/io.github.ctsdownloads.CosmicCassetteDeck.desktop
+        /app/share/applications/io.github.ctsdownloads.CosmicCassetteDeck.desktop
+      - install -Dm0644 res/io.github.ctsdownloads.CosmicCassetteDeck.svg
+        /app/share/icons/hicolor/scalable/apps/io.github.ctsdownloads.CosmicCassetteDeck.svg
+      - install -Dm0644 res/io.github.ctsdownloads.CosmicCassetteDeck.metainfo.xml
+        /app/share/metainfo/io.github.ctsdownloads.CosmicCassetteDeck.metainfo.xml
+    sources:
+      # Local build: the checkout itself. For a Flathub submission, swap this for
+      # a tagged release archive with a sha256.
+      - type: dir
+        path: .
+      - cargo-sources.json

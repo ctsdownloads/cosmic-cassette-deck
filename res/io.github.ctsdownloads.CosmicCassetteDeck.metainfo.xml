@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.ctsdownloads.CosmicCassetteDeck</id>
+
+  <name>Cassette Deck</name>
+  <summary>Photorealistic cassette player for local music</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+
+  <developer id="io.github.ctsdownloads">
+    <name>Matt Hartley</name>
+  </developer>
+
+  <description>
+    <p>
+      A photoreal 1980s portable cassette player for your local music library, built
+      as a native COSMIC application. The deck is a photograph, and the app draws the
+      living parts on top every frame.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Animated reels driven by physically derived spool speeds: the source reel empties and speeds up while the take-up slows</li>
+      <li>Click a cassette case and it hinges open, the tape lifts out, and it drops into the deck before playback begins</li>
+      <li>A dynamic track label rasterized from your file tags</li>
+      <li>Five colour skins, and swappable room backgrounds you can add your own images to</li>
+      <li>Cassette Rack: fan through your albums with cover art from your tags, or scraped when a tag has none</li>
+      <li>Mechanical sound: the transport keys click, the tape seats with a clunk, and holding fast-forward or rewind whirrs</li>
+      <li>MPRIS support for media keys, playerctl, and desktop panel controls</li>
+      <li>Plays MP3, FLAC, M4A/AAC, and WAV</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.ctsdownloads.CosmicCassetteDeck.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>The photoreal cassette deck playing a track</caption>
+      <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/player-denim.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The Cassette Rack fans through your library, one cassette per album</caption>
+      <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/cassette-rack.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>An album case, its cover printed on the J-card</caption>
+      <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/album.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The case hinges open and the tape drops into the deck</caption>
+      <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/insert.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Five colour skins cycle from the Player</caption>
+      <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/player-red.png</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/ctsdownloads/cosmic-cassette-deck</url>
+  <url type="bugtracker">https://github.com/ctsdownloads/cosmic-cassette-deck/issues</url>
+  <url type="vcs-browser">https://github.com/ctsdownloads/cosmic-cassette-deck</url>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Player</category>
+  </categories>
+
+  <keywords>
+    <keyword>cassette</keyword>
+    <keyword>music</keyword>
+    <keyword>player</keyword>
+    <keyword>tape</keyword>
+    <keyword>audio</keyword>
+  </keywords>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.0.17" date="2026-07-12">
+      <description>
+        <p>Header-bar window controls now render outside COSMIC. Packaging and documentation fixes.</p>
+      </description>
+    </release>
+  </releases>
+</component>
