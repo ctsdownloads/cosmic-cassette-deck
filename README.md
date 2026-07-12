@@ -43,10 +43,19 @@ Five colour skins cycle from the Player with the Walkman button: the same photog
 
 ## Install
 
-There are two separate sets of instructions in this README, and they do different things:
+There are two ways to get this app, and this README covers both. They are not the same job:
 
-- **Install a package** (this section) - the app is already built for you. It installs system-wide, lands in your app menu as **Cassette Deck**, pulls in its own dependencies, and survives reboots and updates. No clone, no Rust, no compiling. This is what almost everyone wants.
-- **[Build from source](#building-from-source)** (further down) - you clone the repo and compile it yourself. The binary sits inside your checkout, is not installed system-wide, and does not appear in your app menu. For hacking on the code, or for a distro with no package here.
+| | **Install** (this section) | **[Build from source](#building-from-source-for-hacking-on-it)** |
+|---|---|---|
+| You end up with | The app **installed** - system-wide, in your app menu as **Cassette Deck** | A **binary inside a checkout**, at `target/release/`. Nothing installed, nothing in your app menu |
+| Effort | One command | Clone, install a Rust toolchain and system libraries, sit through a long first compile |
+| Does it compile? | Ubuntu / Fedora: no, the binary is prebuilt. **NixOS: yes** - Nix compiles it for you, then installs it | Yes. You run `cargo` yourself |
+| Dependencies | Pulled in for you | You install them yourself |
+| Updating | Your package manager, or `nixos-rebuild` | `git pull` and recompile by hand |
+| Removing it | `apt remove` / `dnf remove` / drop it from your flake | Delete the checkout |
+| Pick this if | You want to **use** the app | You want to **change the code**, or your distro has no package here |
+
+**Almost everyone wants Install.** Note that on NixOS *both* routes compile the app - so "does it compile" is not the difference. The difference is whether you end up with an installed app or a checkout to work in.
 
 Packages for the latest release are on the [Releases page](https://github.com/ctsdownloads/cosmic-cassette-deck/releases). Download the one for your distro, then install it from the directory you saved it in.
 
@@ -66,17 +75,19 @@ Either one pulls in what the app needs at runtime - ALSA, Wayland, libxkbcommon,
 
 The `.deb` and `.rpm` are x86_64 only. On ARM (aarch64), use the Nix package or build from source; both support it.
 
-**NixOS** - the `.deb` and `.rpm` are no use to you. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) is the install route: it adds this repo to your system flake, so Nix builds and installs it as a normal package that lands in your app menu and persists across `nixos-rebuild`. (NixOS also appears under Building from source below - that is the *other* set, for compiling it yourself. Different job.)
+**NixOS** - the `.deb` and `.rpm` are no use to you. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) is your install route: add this repo to your system flake, and Nix compiles the app and installs it as a normal package - in your app menu, persisting across `nixos-rebuild`. You never run cargo and you keep no checkout.
 
 ### Running outside COSMIC
 
 It is a native COSMIC app, but it runs on any Wayland desktop - GNOME, KDE Plasma, and the rest. On those, it draws its titlebar's minimize, maximize, and close buttons from the Adwaita icon theme, because the COSMIC icon theme isn't installed there and the buttons would otherwise render blank. The packages depend on Adwaita, so an installed package just works. If you build from source, install it yourself; it is in the dependency lists below.
 
-## Building from source
+## Building from source (for hacking on it)
 
-This is the second set of instructions - the one that does **not** install the app. You clone the repo and compile it; the binary ends up in `target/release/` inside your checkout. It is not installed system-wide and it will not appear in your app menu. If you just want to use the app, go back to [Install](#install).
+**This does not install the app.** You clone the repo and compile it; the binary lands in `target/release/` inside your checkout. It is not installed system-wide, it will not appear in your app menu, and nothing manages it for you. If you just want to *use* the app, go back to [Install](#install).
 
-Use this if you want to hack on the code, or if your distro has no package above.
+Use this if you want to change the code, or if your distro has no package above.
+
+NixOS note: the [NIXOS_INSTALL.md](NIXOS_INSTALL.md) route compiles the app too - Nix just does it for you and installs the result. This section is different: it gives you a checkout to work in.
 
 You need the Rust toolchain plus a few system libraries, then a single `cargo` build. There are two ways to get that environment: a normal distro with rustup, or NixOS using the dev shell this repo ships. Both finish at the same build step.
 
