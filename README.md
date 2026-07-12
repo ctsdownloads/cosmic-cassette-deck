@@ -81,6 +81,39 @@ The `.deb` and `.rpm` are x86_64 only. On ARM (aarch64), use the Nix package or 
 
 It is a native COSMIC app, but it runs on any Wayland desktop - GNOME, KDE Plasma, and the rest. On those, it draws its titlebar's minimize, maximize, and close buttons from the Adwaita icon theme, because the COSMIC icon theme isn't installed there and the buttons would otherwise render blank. The packages depend on Adwaita, so an installed package just works. If you build from source, install it yourself; it is in the dependency lists below.
 
+## Using it
+
+### Add your music
+
+Click **Open Folder** and point it at your music directory. The app scans it recursively, reads the tags, groups the files into album cassettes, and fills the rack. Click a cassette to play it.
+
+Files are grouped into albums by their Artist and Album tags (read with lofty), so each album is one cassette no matter how many songs it holds, and its tracks play in track-number order. Files with no tags fall back to their `Artist - Title` filename, and each becomes its own single. Formats: MP3, FLAC, M4A/AAC, and WAV.
+
+Your folder is remembered, so this is a one-time step. To point it somewhere else, click **Open Folder** again.
+
+### Change the room background
+
+The room behind the cassettes is swappable. On the Cassette Rack screen:
+
+- **Backdrop ⟳** - cycle through the backgrounds, built-in and added.
+- **＋ Image** - add your own. PNG, JPG, or WEBP.
+- **🗑 Remove** - remove the one currently showing, if it is one you added. The built-ins stay.
+
+Your choice applies to the rack, the album screen, and the insert animation, and is remembered between runs.
+
+### On the Player
+
+- **▶ Play** / **⏸ Pause**, plus stop, seek, and volume. Hold fast-forward or rewind to wind the tape.
+- **Walkman: … ⟳** cycles the deck through its five colour skins.
+- **Wallpaper: On / Off** fills the space around the deck with the playing album's cover art. Off by default, and remembered. This is separate from the room background above.
+- **Music Rack** goes back to the shelf. **About** shows the version and a link to the project.
+
+Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf. To move between songs use **‹ Prev** and **Next ›**, or slide the FUNCT switch on the deck so fast-forward and rewind step from track to track instead of winding the tape. The label always shows the song that is playing.
+
+### Where your settings live
+
+State is saved to `~/.config/cosmic-cassette-deck/state`: music folder, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume.
+
 ## Building from source (for hacking on it)
 
 **This does not install the app.** You clone the repo and compile it; the binary lands in `target/release/` inside your checkout. It is not installed system-wide, it will not appear in your app menu, and nothing manages it for you. If you just want to *use* the app, go back to [Install](#install).
@@ -143,23 +176,7 @@ cargo run --release
 
 The first build compiles libcosmic and takes several minutes. It produces the binary at `target/release/cosmic-cassette-deck` - run that directly next time, or `cargo run --release` again. (`Cargo.lock` is committed, so the build is reproducible; only regenerate it with `cargo generate-lockfile` if you change dependencies.)
 
-### 4. First launch
-
-Click **Open Folder** and point it at your music directory. The app scans it recursively, groups files into album cassettes by their tags, and fills the rack. Click a cassette to play it.
-
-## Usage and configuration
-
-State is saved to `~/.config/cosmic-cassette-deck/state`: music folder, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume.
-
-- Player: transport controls, seek, and volume. The Walkman button cycles the deck colour, and the Wallpaper button toggles the album-cover backdrop behind the deck.
-- Cassette Rack: browse albums with the arrow keys. The backdrop controls cycle, add, and remove the room background. Click an album to open it.
-- Album screen: click the case, or the play button, to open it and insert the tape.
-
-### Albums and tracks
-
-Files are grouped into albums by their Artist and Album tags (read with lofty), so each album is one cassette in the rack no matter how many songs it holds, and its tracks play in track-number order. Files with no tags fall back to their `Artist - Title` filename, and each becomes its own single.
-
-Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf. To move between songs, use Prev and Next, or slide the FUNCT switch on the deck so fast-forward and rewind step from track to track instead of winding the tape. The label always shows the song that is playing.
+On first run, see [Using it](#using-it) for adding your music and changing backgrounds.
 
 ## Tech
 
