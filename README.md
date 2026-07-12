@@ -95,20 +95,20 @@ Your folder is remembered, so this is a one-time step. To point it somewhere els
 
 The room behind the cassettes is swappable. On the Cassette Rack screen:
 
-- **Backdrop ⟳** - cycle through the backgrounds, built-in and added.
-- **＋ Image** - add your own. PNG, JPG, or WEBP.
-- **🗑 Remove** - remove the one currently showing, if it is one you added. The built-ins stay.
+- **Backdrop** - cycle through the backgrounds, built-in and added.
+- **Image** - add your own. PNG, JPG, or WEBP.
+- **Remove** - remove the one currently showing, if it is one you added. The built-ins stay.
 
 Your choice applies to the rack, the album screen, and the insert animation, and is remembered between runs.
 
 ### On the Player
 
-- **▶ Play** / **⏸ Pause**, plus stop, seek, and volume. Hold fast-forward or rewind to wind the tape.
-- **Walkman: … ⟳** cycles the deck through its five colour skins.
+- **Play** / **Pause**, plus stop, seek, and volume. Hold fast-forward or rewind to wind the tape.
+- **Walkman** cycles the deck through its five colour skins.
 - **Wallpaper: On / Off** fills the space around the deck with the playing album's cover art. Off by default, and remembered. This is separate from the room background above.
 - **Music Rack** goes back to the shelf. **About** shows the version and a link to the project.
 
-Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf. To move between songs use **‹ Prev** and **Next ›**, or slide the FUNCT switch on the deck so fast-forward and rewind step from track to track instead of winding the tape. The label always shows the song that is playing.
+Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf. To move between songs use **Prev** and **Next**, or slide the FUNCT switch on the deck so fast-forward and rewind step from track to track instead of winding the tape. The label always shows the song that is playing.
 
 ### Where your settings live
 
