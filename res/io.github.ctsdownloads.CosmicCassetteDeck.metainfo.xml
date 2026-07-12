@@ -82,6 +82,11 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.0.19" date="2026-07-12">
+      <description>
+        <p>Flatpak bundle now attached to releases</p>
+      </description>
+    </release>
     <release version="0.0.17" date="2026-07-12">
       <description>
         <p>Header-bar window controls now render outside COSMIC. Packaging and documentation fixes.</p>

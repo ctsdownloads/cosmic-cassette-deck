@@ -49,10 +49,10 @@ There are two ways to get this app, and this README covers both. They are not th
 |---|---|---|
 | You end up with | The app **installed** - system-wide, in your app menu as **Cassette Deck** | A **binary inside a checkout**, at `target/release/`. Nothing installed, nothing in your app menu |
 | Effort | One command | Clone, install a Rust toolchain and system libraries, sit through a long first compile |
-| Does it compile? | Ubuntu / Fedora: no, the binary is prebuilt. **NixOS: yes** - Nix compiles it for you, then installs it | Yes. You run `cargo` yourself |
+| Does it compile? | Ubuntu / Fedora / Flatpak: no, the binary is prebuilt. **NixOS: yes** - Nix compiles it for you, then installs it | Yes. You run `cargo` yourself |
 | Dependencies | Pulled in for you | You install them yourself |
 | Updating | Your package manager, or `nixos-rebuild` | `git pull` and recompile by hand |
-| Removing it | `apt remove` / `dnf remove` / drop it from your flake | Delete the checkout |
+| Removing it | `apt remove` / `dnf remove` / `flatpak uninstall` / drop it from your flake | Delete the checkout |
 | Pick this if | You want to **use** the app | You want to **change the code**, or your distro has no package here |
 
 **Almost everyone wants Install.** Note that on NixOS *both* routes compile the app - so "does it compile" is not the difference. The difference is whether you end up with an installed app or a checkout to work in.
@@ -73,7 +73,21 @@ sudo dnf install ./cosmic-cassette-deck-*.x86_64.rpm
 
 Either one pulls in what the app needs at runtime - ALSA, Wayland, libxkbcommon, the Vulkan loader and driver, and the Adwaita icon theme - and adds **Cassette Deck** to your app menu.
 
-The `.deb` and `.rpm` are x86_64 only. On ARM (aarch64), use the Nix package or build from source; both support it.
+Every prebuilt package here - `.deb`, `.rpm`, and the `.flatpak` below - is **x86_64 only**; they are all built on an x86_64 runner. There is no prebuilt ARM package. The Nix flake declares `aarch64-linux` and a source build has nothing x86-specific in it, so either should work on ARM by compiling on your machine - but neither is tested.
+
+### Flatpak - any other distro, and the only sane route on atomic ones
+
+Every release also carries a single-file `.flatpak` bundle. Download `cosmic-cassette-deck.flatpak` from the [Releases page](https://github.com/ctsdownloads/cosmic-cassette-deck/releases), then:
+
+```sh
+flatpak install --user ./cosmic-cassette-deck.flatpak
+```
+
+Use this on Arch, Debian, openSUSE, Mint, Pop!_OS, or anything else with no native package above.
+
+**On atomic distros - Bluefin, Aurora, Bazzite, Silverblue, Kinoite - this is the route you want.** Layering the `.rpm` with `rpm-ostree` is an anti-pattern there, needs a reboot, and is disabled outright on some variants. The Flatpak is sandboxed, installs without touching the base image, and updates like any other app.
+
+The bundle is sandboxed and ships its own icon theme, so the window controls render everywhere with no extra packages. It is not on Flathub, so it will not auto-update - grab the newer bundle from Releases and install it over the top.
 
 **NixOS** - the `.deb` and `.rpm` are no use to you. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) is your install route, and it covers three: `nix run` to try the app without installing it, `nix profile install` to install it with a single command, or adding it to your system flake so it is declarative and survives a rebuild. Nix compiles the app in all three cases; you never run cargo and you keep no checkout.
 
