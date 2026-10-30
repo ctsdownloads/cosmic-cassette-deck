@@ -10,6 +10,14 @@ mod case_open;
 mod artscrape;
 
 fn main() -> cosmic::iced::Result {
+    // Render with Vulkan unless the user picked a backend. The OpenGL fallback
+    // crashes on hybrid Intel/NVIDIA systems (khronos-egl panics when NVIDIA's
+    // EGL returns no display without an error code), and every package ships
+    // Vulkan. If Vulkan fails anyway, iced falls back to software rendering.
+    if std::env::var_os("WGPU_BACKEND").is_none() {
+        std::env::set_var("WGPU_BACKEND", "vulkan");
+    }
+
     // Portrait window to match the skin's aspect (843×1264 + controls below).
     let mut settings = cosmic::app::Settings::default()
         .size(cosmic::iced::Size::new(560.0, 1020.0))
