@@ -377,6 +377,14 @@ impl App {
         self.save_state();
     }
 
+    /// Drop a held fast-forward/rewind without resuming playback. Used when an
+    /// animation takes over, since the key release will not reach `WindStop`.
+    fn stop_winding(&mut self) {
+        if self.wind.take().is_some() {
+            let _ = self.audio_tx.send(AudioCmd::Wind(false));
+        }
+    }
+
     /// Load a track from a different album. On the player this swaps tapes
     /// on screen (old one out, new one in); anywhere else it loads directly.
     fn change_tape(&mut self, album: usize, track: usize) {
@@ -384,6 +392,7 @@ impl App {
             self.load_track(album, track);
             return;
         }
+        self.stop_winding();
         let _ = self.audio_tx.send(AudioCmd::Stop);
         self.playing = false;
         self.skip_anim = None;
@@ -459,7 +468,10 @@ impl App {
             self.screen = screen;
         }
         let new_album = self.current.map(|(a, _)| a);
-        if screen == Screen::Rack && new_album != old_album && old_album == Some(self.browse_index) {
+        if matches!(screen, Screen::Rack | Screen::Reveal(_))
+            && new_album != old_album
+            && old_album == Some(self.browse_index)
+        {
             if let Some(album) = new_album {
                 self.browse_index = album;
                 self.rebuild_fan();
@@ -747,6 +759,7 @@ impl Application for App {
                     | Message::CloseReveal
                     | Message::OpenCase { .. }
                     | Message::CycleSkin
+                    | Message::ToggleBackdrop
                     | Message::OpenFolder
                     | Message::Mpris(_)
             )
@@ -845,7 +858,9 @@ impl Application for App {
                     let left = left - dt;
                     self.skip_anim = (left > 0.0).then_some((dir, left));
                 } else {
-                    // Reels ease toward play speed or toward a stop.
+                    // Reels ease toward play speed or toward a stop. The step is
+                    // capped: the first tick after an idle spell spans the whole gap.
+                    let dt = dt.min(0.05);
                     let target = if self.playing { 1.0 } else { 0.0 };
                     let k = 1.0 - (-dt / REEL_TAU).exp();
                     self.reel_speed += (target - self.reel_speed) * k;
@@ -1010,6 +1025,7 @@ impl Application for App {
                 let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
                 // Stop/eject key: pressed again while stopped, it ejects.
                 if self.stopped && self.current.is_some() && self.screen == Screen::Player {
+                    self.stop_winding();
                     let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
                     self.screen = Screen::Eject { started: Instant::now() };
                     return Task::none();

@@ -15,6 +15,10 @@ fn main() -> cosmic::iced::Result {
         .size(cosmic::iced::Size::new(560.0, 1020.0))
         .size_limits(cosmic::iced::Limits::NONE.min_width(420.0).min_height(760.0));
 
+    // Always the dark theme: every page sits on the charcoal background, so the
+    // widgets and text must not follow a light desktop theme.
+    settings = settings.theme(cosmic::Theme::dark());
+
     // libcosmic draws the header-bar window controls (minimize / maximize / close)
     // as XDG icon lookups against icon theme "Cosmic". Off COSMIC that theme isn't
     // installed, so the buttons exist and stay clickable but render blank -- an

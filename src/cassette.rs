@@ -438,6 +438,10 @@ impl<'a, Message: Clone> canvas::Program<Message, cosmic::Theme, cosmic::Rendere
             return self.animate_keys(state, *now);
         }
         if !self.interactive {
+            if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) = event {
+                state.pressed = None;
+                state.label_armed = false;
+            }
             return None;
         }
         let map = SkinMap::new(self.skin.spec, bounds.size());
