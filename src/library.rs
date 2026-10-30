@@ -75,8 +75,9 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
         }
     }
 
+    // Rack order: by artist then album, ignoring case ("a-ha" sits with the A's).
     let mut out: Vec<Album> = albums.into_values().collect();
-    let _ = &out;
+    out.sort_by_cached_key(|a| (a.artist.to_lowercase(), a.title.to_lowercase()));
     for album in &mut out {
         album
             .tracks

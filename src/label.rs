@@ -11,7 +11,6 @@ use crate::cassette::SkinSpec;
 
 const FONT_TITLE: &[u8] = include_bytes!("../assets/DejaVuSans-Bold.ttf");
 pub const FONT_SUB: &[u8] = include_bytes!("../assets/DejaVuSans.ttf");
-pub const FONT_BOLD: &[u8] = include_bytes!("../assets/DejaVuSans-Bold.ttf");
 
 /// Supersample so the label stays crisp above native skin resolution.
 const SS: u32 = 2;

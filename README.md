@@ -2,7 +2,7 @@
 
 A photoreal 1980s portable cassette player for your local music library. A native COSMIC desktop app built on libcosmic.
 
-The deck is a photograph, and the app draws the living parts on top every frame: spinning reels with real spool physics, a rasterized track label, and transport keys that travel down into the chassis. Click a cassette case and it swings open, the tape lifts out, and it drops into the walkman. Recolor the deck and swap the room behind it.
+The deck is a photograph, and the app draws the living parts on top every frame: spinning reels with real spool physics, a rasterized track label, and transport keys that sink into the chassis. Click a cassette case and it swings open, the tape lifts out, and it slides down into the walkman's window. Press Stop twice and it slides back out. Recolor the deck and swap the room behind it.
 
 <p align="center">
   <img src="docs/player-denim.png" alt="The photoreal cassette deck playing a track" width="760">
@@ -11,7 +11,9 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 ## Features
 
 - Photoreal deck with animated reels driven by physically derived spool speeds. The source reel empties and speeds up while the take-up slows (an area-conserving pack model), and a fixed specular highlight is drawn over each spinning hub the way light stays put on a real deck.
-- Case-open and insert animation. On the album screen, click the cassette case: it hinges open, the tape lifts out and drops into the deck, and playback begins.
+- Case-open and insert animation. On the album screen, click the cassette case: it hinges open, the tape lifts out, the room fades to the deck, and the tape slides into the cassette window with its label already printed. Playback begins as it seats.
+- Eject and tape swap. Press Stop while stopped and the tape slides up out of the window, then the rack fades in. When an album ends and the next one starts, the old tape slides out and the next album's tape slides in.
+- Keys that move like a real deck's. Pressed keys sink into the chassis and spring back; Play stays latched down while the tape plays and pops up on pause or stop. The FUNCT switch slides along its slot. Each colour skin shows its own casing behind them.
 - Dynamic label. Song and album come from your file tags, rasterized with ab_glyph and rotated (working around iced's lack of rotated canvas text), regenerated on track change rather than per frame.
 - Colour skins: Denim Belt, Red, Blue, Black, and White, cycled from the Player.
 - Swappable room backgrounds. Cycle the built-ins, add your own image, or remove ones you added. The choice applies to the rack, the album screen, and the insert animation.
@@ -120,11 +122,13 @@ Your choice applies to the rack, the album screen, and the insert animation, and
 ### On the Player
 
 - **Play** / **Pause**, plus stop, seek, and volume. Hold fast-forward or rewind to wind the tape.
+- **Stop** again while stopped ejects the tape and goes back to the rack.
+- Keyboard: **Space** plays and pauses, **S** stops (press it again to eject).
 - **Walkman** cycles the deck through its five colour skins.
 - **Wallpaper: On / Off** fills the space around the deck with the playing album's cover art. Off by default, and remembered. This is separate from the room background above.
 - **Music Rack** goes back to the shelf. **About** shows the version and a link to the project.
 
-Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf. To move between songs use **Prev** and **Next**, or slide the FUNCT switch on the deck so fast-forward and rewind step from track to track instead of winding the tape. The label always shows the song that is playing.
+Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf, and after the last one starts over from the first. To move between songs use **Prev** and **Next**, or slide the FUNCT switch on the deck so fast-forward and rewind step from track to track instead of winding the tape. The label always shows the song that is playing.
 
 ### Where your settings live
 
