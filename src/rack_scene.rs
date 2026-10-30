@@ -31,6 +31,9 @@ pub struct RackScene<'a> {
     pub cases: &'a [image::Handle],
     pub albums: &'a [Album],
     pub current: usize,
+    /// Fade-in from the deck's charcoal after an eject: a solid charcoal
+    /// image drawn over everything at this opacity (None when not fading).
+    pub fade: Option<(&'a image::Handle, f32)>,
 }
 
 /// Aspect ratio of a case sprite (from case_transparent.png, 480×735).
@@ -180,6 +183,15 @@ impl<'a> canvas::Program<Message, cosmic::Theme, cosmic::Renderer> for RackScene
         // Centre case on top.
         if let Some(h) = self.cases.first() {
             frame.draw_image(l.front_rect(), canvas::Image::new(h.clone()));
+        }
+
+        // Fading in after an eject. An image, not a filled shape: shapes are
+        // rendered beneath images, so a fill could not cover the cases.
+        if let Some((fill, a)) = self.fade {
+            frame.draw_image(
+                Rectangle::new(Point::ORIGIN, bounds.size()),
+                canvas::Image::new(fill.clone()).opacity(a),
+            );
         }
 
         vec![frame.into_geometry()]

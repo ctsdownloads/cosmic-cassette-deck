@@ -2,7 +2,6 @@ mod app;
 mod audio;
 mod cassette;
 mod label;
-mod loading;
 mod library;
 mod mpris;
 mod rack_scene;

@@ -32,10 +32,16 @@ const TICK: Duration = Duration::from_millis(16); // ~60 fps: keeps fast spool
 /// fresh (and self-heals a stale `playing` flag) without a 60 fps CPU burn.
 const HEARTBEAT: Duration = Duration::from_millis(250);
 const STATE_SAVE_EVERY: Duration = Duration::from_secs(5);
-/// How long the cassette-load animation plays before the player appears.
-const LOAD_ANIM: Duration = Duration::from_millis(850);
 /// How long the case-open → walkman animation plays before the player appears.
 const CASE_ANIM: Duration = Duration::from_millis(1600);
+/// Eject: the tape slides up out of the window, then the rack opens.
+const EJECT_ANIM: Duration = Duration::from_millis(700);
+/// Tape swap at an album change: old tape out, short beat, new tape in.
+const SWAP_ANIM: Duration = Duration::from_millis(1300);
+/// After an eject, the rack fades in from the deck's charcoal.
+const RACK_FADE: Duration = Duration::from_millis(280);
+/// Reel spin-up / spin-down time constant (seconds) on play, pause and stop.
+const REEL_TAU: f32 = 0.12;
 
 /// Project home, shown in and opened from the About card.
 const REPO_URL: &str = "https://github.com/ctsdownloads/cosmic-cassette-deck";
@@ -47,13 +53,6 @@ enum Screen {
     /// Case reveal: the selected album's cassette case, big, cover on the
     /// J-card, over the dimmed rack. Play from here or click out to return.
     Reveal(usize),
-    /// Cassette-load animation playing before the player appears. Carries the
-    /// track to load when the animation finishes, and when it started.
-    Loading {
-        album: usize,
-        track: usize,
-        started: Instant,
-    },
     /// Case-open animation: the reveal case swings open, the tape lifts out and
     /// drops into the walkman. Carries the track to load and when it started.
     CaseOpen {
@@ -61,6 +60,47 @@ enum Screen {
         track: usize,
         started: Instant,
     },
+    /// Eject on the player: the tape slides up out of the window, then the
+    /// tape is unloaded and the rack opens.
+    Eject { started: Instant },
+    /// Album change on the player: the old tape slides out and the next
+    /// album's tape slides in, then that track loads.
+    Swap {
+        album: usize,
+        track: usize,
+        started: Instant,
+    },
+}
+
+impl Screen {
+    /// An animation owns the screen; user input is ignored until it ends.
+    fn animating(&self) -> bool {
+        matches!(
+            self,
+            Screen::CaseOpen { .. } | Screen::Eject { .. } | Screen::Swap { .. }
+        )
+    }
+}
+
+/// Eject: tape out of the window, `drop` 0 -> 1, fast then settling, then a
+/// short beat on the empty deck before the rack opens.
+fn eject_drop(t: f32) -> f32 {
+    let k = (t / 0.75).clamp(0.0, 1.0);
+    1.0 - (1.0 - k).powi(3)
+}
+
+/// Tape swap: old tape out (0 -> 1), beat, new tape in (1 -> 0). The second
+/// value is true once the new tape (and its label) is the one showing.
+fn swap_drop(t: f32) -> (f32, bool) {
+    if t < 0.40 {
+        let k = t / 0.40;
+        (1.0 - (1.0 - k).powi(3), false)
+    } else if t < 0.50 {
+        (1.0, true)
+    } else {
+        let k = ((t - 0.50) / 0.50).clamp(0.0, 1.0);
+        (1.0 - k * k, true)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -74,14 +114,12 @@ pub enum Message {
     LabelClicked, // clicking the deck label opens the current album art
     AlbumSelected(usize),
     CloseReveal,
-    PlayTrack { album: usize, track: usize },
     OpenCase { album: usize, track: usize }, // click the reveal case: open it, then load
     TogglePlay,
     Stop,
     Next,
     Prev,
     Seek(f32),   // fraction 0.0..=1.0
-    SeekBy(f32), // seconds, signed
     SetVolume(f32),
     WindStart(i8), // +1 fwd, -1 back (hold-to-wind from the deck buttons)
     WindStop,
@@ -132,13 +170,18 @@ pub struct App {
     /// Composed case sprites for the current fan window (centre first).
     fan_cases: Vec<cosmic::widget::image::Handle>,
     label_img: Option<cosmic::widget::image::Handle>,
+    /// Label for the track an insert animation is loading, rendered when the
+    /// animation starts so the tape slides in already labelled.
+    incoming_label: Option<cosmic::widget::image::Handle>,
+    /// Album-cover wallpaper for the tape an insert or swap is loading,
+    /// decoded when it starts so it can fade in (only while Wallpaper is on).
+    incoming_backdrop: Option<cosmic::widget::image::Handle>,
     /// Blurred album-cover backdrop shown behind the deck on the Player page.
     player_backdrop: Option<cosmic::widget::image::Handle>,
     /// Whether the Player draws the cover backdrop (toggled on the Player page,
     /// persisted; off by default).
     show_backdrop: bool,
     /// Pre-built handles for the cassette-load animation (empty deck + sprite).
-    load_empty: cosmic::widget::image::Handle,
     load_sprite: cosmic::widget::image::Handle,
     /// Split handles of the open-case sprite for the case-open animation.
     case_tray: cosmic::widget::image::Handle,
@@ -148,6 +191,13 @@ pub struct App {
     // Animation state
     angle_src: f32,
     angle_tk: f32,
+    /// Reel speed factor, 0 (still) to 1 (play speed). Eases toward the
+    /// target so the reels spin up and down instead of starting dead.
+    reel_speed: f32,
+    /// When the rack started fading in after an eject (None when not fading).
+    rack_fade: Option<Instant>,
+    /// Solid page-background image, for fades drawn inside canvases.
+    page_fill: cosmic::widget::image::Handle,
     last_tick: Instant,
 
     // Mirrored from SharedStatus each tick (view() stays lock-free)
@@ -309,17 +359,78 @@ impl App {
         };
         let _ = self.audio_tx.send(AudioCmd::Load(path));
         self.current = Some((album, track));
-        self.refresh_backdrop();
+        match self.incoming_backdrop.take() {
+            // Already decoded for the insert/swap that brought this tape in.
+            Some(b) if self.show_backdrop => self.player_backdrop = Some(b),
+            _ => self.refresh_backdrop(),
+        }
         self.position = Duration::ZERO;
         self.playing = true;
         self.stopped = false;
         self.notice = None;
         // Rasterize the label once per track/skin change — not per frame.
         self.label_img = Some(label::render(&song, &album_name, self.skins[self.skin_idx].spec));
+        self.incoming_label = None;
         self.screen = Screen::Player;
         self.push_mpris_metadata();
         self.push_mpris(MprisUpdate::Playing);
         self.save_state();
+    }
+
+    /// Load a track from a different album. On the player this swaps tapes
+    /// on screen (old one out, new one in); anywhere else it loads directly.
+    fn change_tape(&mut self, album: usize, track: usize) {
+        if self.screen != Screen::Player {
+            self.load_track(album, track);
+            return;
+        }
+        let _ = self.audio_tx.send(AudioCmd::Stop);
+        self.playing = false;
+        self.skip_anim = None;
+        self.incoming_label = self.render_label_for(album, track);
+        self.incoming_backdrop = self.backdrop_for(album);
+        self.screen = Screen::Swap {
+            album,
+            track,
+            started: Instant::now(),
+        };
+    }
+
+    /// Finish an eject: the deck is empty, the rack opens on the ejected album.
+    fn unload_tape(&mut self) {
+        let _ = self.audio_tx.send(AudioCmd::Stop);
+        if let Some((album, _)) = self.current {
+            if album < self.library.len() {
+                self.browse_index = album;
+                self.rebuild_fan();
+            }
+        }
+        self.current = None;
+        self.label_img = None;
+        self.player_backdrop = None;
+        self.playing = false;
+        self.stopped = false;
+        self.reel_speed = 0.0;
+        self.position = Duration::ZERO;
+        self.push_mpris(MprisUpdate::Stopped);
+        self.save_state();
+        self.screen = Screen::Rack;
+        self.rack_fade = Some(Instant::now());
+    }
+
+    /// Wallpaper for an album about to load, when Wallpaper is on.
+    fn backdrop_for(&self, album: usize) -> Option<cosmic::widget::image::Handle> {
+        if !self.show_backdrop {
+            return None;
+        }
+        self.album_cover_bytes(album).and_then(|b| cover_backdrop(&b))
+    }
+
+    /// Label for a track that is about to load (insert animations).
+    fn render_label_for(&self, album: usize, track: usize) -> Option<cosmic::widget::image::Handle> {
+        let a = self.library.get(album)?;
+        let t = a.tracks.get(track)?;
+        Some(label::render(&t.title, &a.title, self.skins[self.skin_idx].spec))
     }
 
     /// Load a track paused at a given position (session resume).
@@ -337,7 +448,26 @@ impl App {
     }
 
     /// Move ±1 track, continuing across album boundaries in rack order.
+    /// While browsing, playback moves on without leaving the screen, and the
+    /// rack follows the tape unless you've browsed to a different album.
     fn step_track(&mut self, offset: i64) {
+        let screen = self.screen;
+        let old_album = self.current.map(|(a, _)| a);
+        self.step_track_inner(offset);
+
+        if matches!(screen, Screen::Rack | Screen::Reveal(_)) {
+            self.screen = screen;
+        }
+        let new_album = self.current.map(|(a, _)| a);
+        if screen == Screen::Rack && new_album != old_album && old_album == Some(self.browse_index) {
+            if let Some(album) = new_album {
+                self.browse_index = album;
+                self.rebuild_fan();
+            }
+        }
+    }
+
+    fn step_track_inner(&mut self, offset: i64) {
         let Some((a, t)) = self.current else { return };
         // Spools whirl briefly in the travel direction of the skip.
         self.skip_anim = Some((offset.signum() as i8, 0.35));
@@ -348,21 +478,12 @@ impl App {
         if (0..len).contains(&next) {
             self.load_track(a, next as usize);
         } else if offset > 0 {
-            if a + 1 < self.library.len() {
-                // Side ran out — next tape on the shelf.
-                self.load_track(a + 1, 0);
-            } else {
-                // End of the library.
-                let _ = self.audio_tx.send(AudioCmd::Stop);
-                self.playing = false;
-                self.stopped = true;
-                self.position = Duration::ZERO;
-                self.push_mpris(MprisUpdate::Stopped);
-            }
+            // Side ran out: next tape on the shelf, wrapping to the first.
+            self.change_tape((a + 1) % self.library.len(), 0);
         } else if a > 0 {
             let prev = a - 1;
             let last = self.library[prev].tracks.len().saturating_sub(1);
-            self.load_track(prev, last);
+            self.change_tape(prev, last);
         } else {
             self.load_track(a, 0); // before the very first track: restart it
         }
@@ -507,15 +628,19 @@ impl Application for App {
             cover_bytes: std::collections::HashMap::new(),
             fan_cases: Vec::new(),
             label_img: None,
+            incoming_label: None,
+            incoming_backdrop: None,
             player_backdrop: None,
             show_backdrop,
-            load_empty: cosmic::widget::image::Handle::from_bytes(EMPTY_DECK_PNG.to_vec()),
             load_sprite: cosmic::widget::image::Handle::from_bytes(CASSETTE_SPRITE_PNG.to_vec()),
             case_tray,
             case_lid,
             case_lid_flipped,
             angle_src: 0.0,
             angle_tk: 0.0,
+            reel_speed: 0.0,
+            rack_fade: None,
+            page_fill: solid_bg([23, 23, 28]),
             last_tick: Instant::now(),
             position: Duration::ZERO,
             playing: false,
@@ -557,8 +682,10 @@ impl Application for App {
         //   - nothing when no tape is loaded.
         let animating = self.wind.is_some()
             || self.skip_anim.is_some()
-            || matches!(self.screen, Screen::Loading { .. } | Screen::CaseOpen { .. })
-            || self.playing;
+            || self.screen.animating()
+            || self.playing
+            || self.reel_speed > 0.0
+            || self.rack_fade.is_some();
         let has_tape = self.current.is_some() && !self.stopped;
         let ticks = if animating {
             cosmic::iced::time::every(TICK).map(Message::Tick)
@@ -572,12 +699,18 @@ impl Application for App {
         // iced_futures::event::listen_with for keyboard/window subscriptions
         // (see libcosmic src/app/cosmic.rs); the closure takes (event, status,
         // window_id). The BrowseStep handler no-ops unless on the rack screen.
-        let keys = cosmic::iced::event::listen_with(|event, _status, _id| {
+        // Space plays/pauses and S stops (S again, stopped on the player,
+        // ejects) - only when no widget took the key (e.g. a focused button)
+        // and no modifier is held, so Ctrl+S and the like pass through.
+        let keys = cosmic::iced::event::listen_with(|event, status, _id| {
             use cosmic::iced::keyboard::{key::Named, Event as KeyEvent, Key};
-            if let cosmic::iced::Event::Keyboard(KeyEvent::KeyPressed { key, .. }) = event {
-                match key {
+            if let cosmic::iced::Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) = event {
+                let free = status == cosmic::iced::event::Status::Ignored && modifiers.is_empty();
+                match key.as_ref() {
                     Key::Named(Named::ArrowLeft) => Some(Message::BrowseStep(-1)),
                     Key::Named(Named::ArrowRight) => Some(Message::BrowseStep(1)),
+                    Key::Character(c) if free && c == " " => Some(Message::TogglePlay),
+                    Key::Character(c) if free && c.eq_ignore_ascii_case("s") => Some(Message::Stop),
                     _ => None,
                 }
             } else {
@@ -594,30 +727,42 @@ impl Application for App {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
+        // While an animation owns the screen, user input (clicks, keys, media
+        // keys) is dropped so it can't load or unload a tape mid-animation.
+        if self.screen.animating()
+            && matches!(
+                message,
+                Message::TogglePlay
+                    | Message::Stop
+                    | Message::Next
+                    | Message::Prev
+                    | Message::Seek(_)
+                    | Message::WindStart(_)
+                    | Message::WindStop
+                    | Message::ToggleSkipMode
+                    | Message::ShowRack
+                    | Message::ShowPlayer
+                    | Message::LabelClicked
+                    | Message::AlbumSelected(_)
+                    | Message::CloseReveal
+                    | Message::OpenCase { .. }
+                    | Message::CycleSkin
+                    | Message::OpenFolder
+                    | Message::Mpris(_)
+            )
+        {
+            return Task::none();
+        }
         match message {
             Message::Tick(now) => {
                 let dt = now.duration_since(self.last_tick).as_secs_f32();
                 self.last_tick = now;
 
-                // If the cassette-load animation is playing, advance it. When
-                // it completes, load the track and switch to the player.
-                if let Screen::Loading {
-                    album,
-                    track,
-                    started,
-                } = self.screen
-                {
-                    if now.duration_since(started) >= LOAD_ANIM {
-                        // Tape clicks into the transport as the animation lands.
-                        let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
-                        self.load_track(album, track);
-                        // load_track sets screen = Player.
-                    }
-                    // Nothing else to advance during the animation.
-                    return Task::none();
+                if self.rack_fade.is_some_and(|t0| now.duration_since(t0) >= RACK_FADE) {
+                    self.rack_fade = None;
                 }
 
-                // Same for the case-open animation (open → lift → drop → seat).
+                // Case-open animation (open → lift → fade → slide in → seat).
                 if let Screen::CaseOpen {
                     album,
                     track,
@@ -629,6 +774,28 @@ impl Application for App {
                         let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
                         self.load_track(album, track);
                         // load_track sets screen = Player.
+                    }
+                    return Task::none();
+                }
+
+                // Eject: when the tape is out, unload it and open the rack.
+                if let Screen::Eject { started } = self.screen {
+                    if now.duration_since(started) >= EJECT_ANIM {
+                        self.unload_tape();
+                    }
+                    return Task::none();
+                }
+
+                // Tape swap: when the new tape seats, load its track.
+                if let Screen::Swap {
+                    album,
+                    track,
+                    started,
+                } = self.screen
+                {
+                    if now.duration_since(started) >= SWAP_ANIM {
+                        let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
+                        self.load_track(album, track);
                     }
                     return Task::none();
                 }
@@ -677,10 +844,19 @@ impl Application for App {
                     self.angle_tk = spin(self.angle_tk, w_tk * dt * k);
                     let left = left - dt;
                     self.skip_anim = (left > 0.0).then_some((dir, left));
-                } else if self.playing {
-                    let (w_src, w_tk) = spool_omegas(self.progress());
-                    self.angle_src = spin(self.angle_src, w_src * dt);
-                    self.angle_tk = spin(self.angle_tk, w_tk * dt);
+                } else {
+                    // Reels ease toward play speed or toward a stop.
+                    let target = if self.playing { 1.0 } else { 0.0 };
+                    let k = 1.0 - (-dt / REEL_TAU).exp();
+                    self.reel_speed += (target - self.reel_speed) * k;
+                    if target == 0.0 && self.reel_speed < 0.01 {
+                        self.reel_speed = 0.0;
+                    }
+                    if self.reel_speed > 0.0 {
+                        let (w_src, w_tk) = spool_omegas(self.progress());
+                        self.angle_src = spin(self.angle_src, w_src * dt * self.reel_speed);
+                        self.angle_tk = spin(self.angle_tk, w_tk * dt * self.reel_speed);
+                    }
                 }
 
                 // Periodic state save so a crash/quit resumes close to here.
@@ -797,19 +973,11 @@ impl Application for App {
             Message::AlbumSelected(i) => self.screen = Screen::Reveal(i),
             Message::CloseReveal => self.screen = Screen::Rack,
 
-            Message::PlayTrack { album, track } => {
-                // Play the cassette-load animation first; the track actually
-                // loads when the animation completes (see Tick handler).
-                self.screen = Screen::Loading {
-                    album,
-                    track,
-                    started: Instant::now(),
-                };
-            }
-
             Message::OpenCase { album, track } => {
                 // Clicking the reveal case plays the open → lift → insert
                 // animation; the track loads when it completes (Tick handler).
+                self.incoming_label = self.render_label_for(album, track);
+                self.incoming_backdrop = self.backdrop_for(album);
                 self.screen = Screen::CaseOpen {
                     album,
                     track,
@@ -840,6 +1008,12 @@ impl Application for App {
 
             Message::Stop => {
                 let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
+                // Stop/eject key: pressed again while stopped, it ejects.
+                if self.stopped && self.current.is_some() && self.screen == Screen::Player {
+                    let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
+                    self.screen = Screen::Eject { started: Instant::now() };
+                    return Task::none();
+                }
                 let _ = self.audio_tx.send(AudioCmd::Stop);
                 self.playing = false;
                 self.stopped = true;
@@ -850,15 +1024,6 @@ impl Application for App {
 
             Message::Next => self.step_track(1),
             Message::Prev => self.step_track(-1),
-
-            Message::SeekBy(secs) => {
-                let total = self.duration().as_secs_f32();
-                if total > 0.0 && !self.stopped {
-                    let target = (self.position.as_secs_f32() + secs).clamp(0.0, total);
-                    self.position = Duration::from_secs_f32(target);
-                    let _ = self.audio_tx.send(AudioCmd::Seek(self.position));
-                }
-            }
 
             Message::SetVolume(v) => {
                 self.volume = v.clamp(0.0, 1.0);
@@ -1003,46 +1168,75 @@ impl Application for App {
         Task::none()
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         if self.show_about {
-            return self.about_view();
+            return with_page_bg(self.about_view());
         }
         let content = match self.screen {
-            Screen::Player => self.player_view(),
+            Screen::Player | Screen::Eject { .. } | Screen::Swap { .. } => self.player_view(),
             Screen::Rack => self.rack_view(),
             Screen::Reveal(i) => self.reveal_view(i),
-            Screen::Loading { started, .. } => self.loading_view(started),
             Screen::CaseOpen { started, .. } => self.case_open_view(started),
         };
-        // Backdrop behind the content: the 80s bedroom behind Reveal/CaseOpen,
-        // and the blurred album cover behind the Player deck (shows around the
-        // letterboxed deck). The rack draws its own dimmed bedroom in-canvas.
-        let backdrop = match self.screen {
-            Screen::Player => {
-                if self.show_backdrop {
-                    self.player_backdrop.clone()
-                } else {
-                    None
-                }
-            }
-            Screen::Reveal(_) | Screen::CaseOpen { .. } => Some(self.current_bg().clone()),
-            _ => None,
+        // Backdrop layers behind the content, bottom to top, each with an
+        // opacity: the 80s bedroom behind Reveal/CaseOpen, and the album-cover
+        // wallpaper behind the Player deck (when on). Animations cross-fade
+        // them so the background never jumps. The rack draws its own dimmed
+        // bedroom in-canvas. Under everything is the charcoal page.
+        let cover = |h: &Option<cosmic::widget::image::Handle>| {
+            if self.show_backdrop { h.clone() } else { None }
         };
-        if let Some(bg_handle) = backdrop {
-            let bg = widget::image(bg_handle)
+        let mut layers: Vec<(cosmic::widget::image::Handle, f32)> = Vec::new();
+        match self.screen {
+            Screen::Player => {
+                layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0)));
+            }
+            Screen::Eject { started } => {
+                // The wallpaper leaves with the tape; the rack fades in after.
+                let t = started.elapsed().as_secs_f32() / EJECT_ANIM.as_secs_f32();
+                layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0 - eject_drop(t))));
+            }
+            Screen::Swap { started, .. } => {
+                // Old album's wallpaper cross-fades to the new one's while the
+                // window is empty between tapes.
+                let t = started.elapsed().as_secs_f32() / SWAP_ANIM.as_secs_f32();
+                let k = ((t - 0.40) / 0.10).clamp(0.0, 1.0);
+                layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0 - k)));
+                layers.extend(cover(&self.incoming_backdrop).map(|h| (h, k)));
+            }
+            Screen::CaseOpen { started, .. } => {
+                // The bedroom fades out as the deck fades in; the new album's
+                // wallpaper (if on) fades in under it, so the screen is already
+                // the player's when the tape lands.
+                let a = case_open::backdrop_alpha(started.elapsed().as_secs_f32() / CASE_ANIM.as_secs_f32());
+                layers.extend(cover(&self.incoming_backdrop).map(|h| (h, 1.0 - a)));
+                layers.push((self.current_bg().clone(), a));
+            }
+            Screen::Reveal(_) => layers.push((self.current_bg().clone(), 1.0)),
+            Screen::Rack => {}
+        }
+        layers.retain(|(_, a)| *a > 0.0);
+        let page = if layers.is_empty() {
+            content
+        } else {
+            let mut stack: Vec<Element<Message>> = layers
+                .into_iter()
+                .map(|(h, a)| {
+                    widget::image(h)
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .content_fit(cosmic::iced::ContentFit::Cover)
+                        .opacity(a)
+                        .into()
+                })
+                .collect();
+            stack.push(container(content).width(Length::Fill).height(Length::Fill).into());
+            cosmic::iced::widget::Stack::with_children(stack)
                 .width(Length::Fill)
                 .height(Length::Fill)
-                .content_fit(cosmic::iced::ContentFit::Cover);
-            cosmic::iced::widget::stack![
-                bg,
-                container(content).width(Length::Fill).height(Length::Fill),
-            ]
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
-        } else {
-            content
-        }
+                .into()
+        };
+        with_page_bg(page)
     }
 }
 
@@ -1050,7 +1244,7 @@ impl Application for App {
 
 impl App {
     /// Full-view About card: app name, version, and a link to the repo.
-    fn about_view(&self) -> Element<Message> {
+    fn about_view(&self) -> Element<'_, Message> {
         let card = widget::column::with_children(vec![
             text::title2("Cassette Deck").into(),
             text::body(format!("Version {}", env!("CARGO_PKG_VERSION"))).into(),
@@ -1068,68 +1262,13 @@ impl App {
         container(card).center(Length::Fill).padding(24).into()
     }
 
-    fn loading_view(&self, started: Instant) -> Element<Message> {
-        let t = (started.elapsed().as_secs_f32() / LOAD_ANIM.as_secs_f32()).clamp(0.0, 1.0);
-        let scene = crate::loading::LoadingScene {
-            empty: self.skins[self.skin_idx].empty.clone(),
-            sprite: self.load_sprite.clone(),
-            t,
-        };
-        let deck = Canvas::new(scene).width(Length::Fill).height(Length::Fill);
-
-        // Mirror the player_view layout EXACTLY so the deck renders at the same
-        // size and position — same column, padding, spacing, and the same
-        // control rows (shown disabled) reserving the same vertical space.
-        // Otherwise the deck jumps/resizes when the animation hands off.
-        let seek_row = widget::row::with_children(vec![
-            text::monotext(fmt_time(Duration::ZERO)).into(),
-            slider(0.0..=1.0, 0.0, |_| Message::Tick(Instant::now()))
-                .step(0.001)
-                .width(Length::Fill)
-                .into(),
-            text::monotext(fmt_time(Duration::ZERO)).into(),
-        ])
-        .spacing(12)
-        .align_y(Alignment::Center);
-
-        let volume_row = widget::row::with_children(vec![
-            text::body("Vol").into(),
-            slider(0.0..=1.0, self.volume, |_| Message::Tick(Instant::now()))
-                .step(0.01)
-                .width(Length::Fixed(220.0))
-                .into(),
-            text::monotext(format!("{:>3.0}%", self.volume * 100.0)).into(),
-        ])
-        .spacing(12)
-        .align_y(Alignment::Center);
-
-        let nav = widget::row::with_children(vec![
-            button::standard("Music Rack").into(),
-            button::standard("Open Folder").into(),
-        ])
-        .spacing(12)
-        .align_y(Alignment::Center);
-
-        let content = widget::column::with_capacity(4)
-            .spacing(14)
-            .padding(16)
-            .align_x(Alignment::Center)
-            .push(deck)
-            .push(seek_row)
-            .push(volume_row)
-            .push(nav);
-
-        container(content)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
-    }
-
-    fn case_open_view(&self, started: Instant) -> Element<Message> {
+    fn case_open_view(&self, started: Instant) -> Element<'_, Message> {
         let t = (started.elapsed().as_secs_f32() / CASE_ANIM.as_secs_f32()).clamp(0.0, 1.0);
         let scene = CaseOpenScene {
-            bedroom: self.current_bg().clone(),
-            empty: self.skins[self.skin_idx].empty.clone(),
+            skin: &self.skins[self.skin_idx],
+            label: self.incoming_label.as_ref(),
+            angle_src: self.angle_src,
+            angle_tk: self.angle_tk,
             tray: self.case_tray.clone(),
             lid: self.case_lid.clone(),
             lid_flipped: self.case_lid_flipped.clone(),
@@ -1143,7 +1282,7 @@ impl App {
         let seek_row = widget::row::with_children(vec![
             text::monotext(fmt_time(Duration::ZERO)).into(),
             slider(0.0..=1.0, 0.0, |_| Message::Tick(Instant::now()))
-                .step(0.001)
+                .step(0.001_f32)
                 .width(Length::Fill)
                 .into(),
             text::monotext(fmt_time(Duration::ZERO)).into(),
@@ -1154,7 +1293,7 @@ impl App {
         let volume_row = widget::row::with_children(vec![
             text::body("Vol").into(),
             slider(0.0..=1.0, self.volume, |_| Message::Tick(Instant::now()))
-                .step(0.01)
+                .step(0.01_f32)
                 .width(Length::Fixed(220.0))
                 .into(),
             text::monotext(format!("{:>3.0}%", self.volume * 100.0)).into(),
@@ -1162,12 +1301,9 @@ impl App {
         .spacing(12)
         .align_y(Alignment::Center);
 
-        let nav = widget::row::with_children(vec![
-            button::standard("Music Rack").into(),
-            button::standard("Open Folder").into(),
-        ])
-        .spacing(12)
-        .align_y(Alignment::Center);
+        // Same button row as the player, so nothing changes when it hands off.
+        // (Presses are dropped while the animation runs; see update().)
+        let nav = self.deck_nav();
 
         let content = widget::column::with_capacity(4)
             .spacing(14)
@@ -1184,50 +1320,8 @@ impl App {
             .into()
     }
 
-    fn player_view(&self) -> Element<Message> {
-        let scene = CassetteScene {
-            skin: &self.skins[self.skin_idx],
-            label: self.label_img.as_ref(),
-            angle_src: self.angle_src,
-            angle_tk: self.angle_tk,
-            on_toggle_play: Message::TogglePlay,
-            on_stop: Message::Stop,
-            on_wind_fwd: Message::WindStart(1),
-            on_wind_back: Message::WindStart(-1),
-            on_wind_stop: Message::WindStop,
-            on_next: Message::Next,
-            on_prev: Message::Prev,
-            on_toggle_mode: Message::ToggleSkipMode,
-            on_eject: Message::ShowRack,
-            on_label_click: Message::LabelClicked,
-            skip_mode: self.skip_mode,
-            fill_letterbox: !(self.show_backdrop && self.player_backdrop.is_some()),
-        };
-
-        let deck = Canvas::new(scene).width(Length::Fill).height(Length::Fill);
-
-        let seek_row = widget::row::with_children(vec![
-            text::monotext(fmt_time(self.position)).into(),
-            slider(0.0..=1.0, self.progress(), Message::Seek)
-                .step(0.001)
-                .width(Length::Fill)
-                .into(),
-            text::monotext(fmt_time(self.duration())).into(),
-        ])
-        .spacing(12)
-        .align_y(Alignment::Center);
-
-        let volume_row = widget::row::with_children(vec![
-            text::body("Vol").into(),
-            slider(0.0..=1.0, self.volume, Message::SetVolume)
-                .step(0.01)
-                .width(Length::Fixed(220.0))
-                .into(),
-            text::monotext(format!("{:>3.0}%", self.volume * 100.0)).into(),
-        ])
-        .spacing(12)
-        .align_y(Alignment::Center);
-
+    /// The Player's button row, also shown during the insert animation.
+    fn deck_nav(&self) -> Element<'_, Message> {
         let mut nav_buttons: Vec<Element<Message>> = vec![
             button::suggested("Music Rack").on_press(Message::ShowRack).into(),
             button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
@@ -1248,7 +1342,76 @@ impl App {
                     .into(),
             );
         }
-        let nav = widget::row::with_children(nav_buttons).spacing(12);
+        widget::row::with_children(nav_buttons).spacing(12).into()
+    }
+
+    fn player_view(&self) -> Element<'_, Message> {
+        // How far the tape is out of the window, and which label it carries:
+        // seated normally, empty with no tape, moving during eject / swap.
+        let (drop, label) = match self.screen {
+            Screen::Eject { started } => {
+                let t = started.elapsed().as_secs_f32() / EJECT_ANIM.as_secs_f32();
+                (eject_drop(t), self.label_img.as_ref())
+            }
+            Screen::Swap { started, .. } => {
+                let t = started.elapsed().as_secs_f32() / SWAP_ANIM.as_secs_f32();
+                let (d, incoming) = swap_drop(t.clamp(0.0, 1.0));
+                let l = if incoming { self.incoming_label.as_ref() } else { self.label_img.as_ref() };
+                (d, l)
+            }
+            _ if self.current.is_none() => (1.0, None),
+            _ => (0.0, self.label_img.as_ref()),
+        };
+        let scene = CassetteScene {
+            skin: &self.skins[self.skin_idx],
+            label,
+            angle_src: self.angle_src,
+            angle_tk: self.angle_tk,
+            on_toggle_play: Message::TogglePlay,
+            on_stop: Message::Stop,
+            on_wind_fwd: Message::WindStart(1),
+            on_wind_back: Message::WindStart(-1),
+            on_wind_stop: Message::WindStop,
+            on_next: Message::Next,
+            on_prev: Message::Prev,
+            on_toggle_mode: Message::ToggleSkipMode,
+            on_label_click: Message::LabelClicked,
+            skip_mode: self.skip_mode,
+            // The charcoal page shows through the letterbox; covers too.
+            fill_letterbox: false,
+            drop,
+            interactive: !self.screen.animating(),
+            play_latched: self.screen == Screen::Player
+                && self.current.is_some()
+                && self.playing
+                && !self.stopped,
+        };
+
+        let deck = Canvas::new(scene).width(Length::Fill).height(Length::Fill);
+
+        let seek_row = widget::row::with_children(vec![
+            text::monotext(fmt_time(self.position)).into(),
+            slider(0.0..=1.0, self.progress(), Message::Seek)
+                .step(0.001_f32)
+                .width(Length::Fill)
+                .into(),
+            text::monotext(fmt_time(self.duration())).into(),
+        ])
+        .spacing(12)
+        .align_y(Alignment::Center);
+
+        let volume_row = widget::row::with_children(vec![
+            text::body("Vol").into(),
+            slider(0.0..=1.0, self.volume, Message::SetVolume)
+                .step(0.01_f32)
+                .width(Length::Fixed(220.0))
+                .into(),
+            text::monotext(format!("{:>3.0}%", self.volume * 100.0)).into(),
+        ])
+        .spacing(12)
+        .align_y(Alignment::Center);
+
+let nav = self.deck_nav();
 
         let mut content = widget::column::with_capacity(7)
             .spacing(14)
@@ -1275,7 +1438,7 @@ impl App {
             .into()
     }
 
-    fn rack_view(&self) -> Element<Message> {
+    fn rack_view(&self) -> Element<'_, Message> {
         let header = widget::row::with_children(vec![
             text::title3("Cassette Rack").into(),
             widget::Space::new().width(Length::Fill).into(),
@@ -1324,6 +1487,10 @@ impl App {
             cases: &self.fan_cases,
             albums: &self.library,
             current: self.browse_index,
+            fade: self.rack_fade.map(|t0| {
+                let k = (t0.elapsed().as_secs_f32() / RACK_FADE.as_secs_f32()).clamp(0.0, 1.0);
+                (&self.page_fill, 1.0 - k * (2.0 - k))
+            }),
         };
         let canvas = Canvas::new(scene).width(Length::Fill).height(Length::Fill);
 
@@ -1391,7 +1558,7 @@ impl App {
 
     /// Case reveal: the selected album's cassette case shown large, the cover
     /// art filling the J-card, with a Play button. Backed by the rack.
-    fn reveal_view(&self, idx: usize) -> Element<Message> {
+    fn reveal_view(&self, idx: usize) -> Element<'_, Message> {
         let Some(album) = self.library.get(idx) else {
             return self.rack_view();
         };
@@ -1501,7 +1668,6 @@ fn cover_backdrop(bytes: &[u8]) -> Option<cosmic::widget::image::Handle> {
 
 const CASE_T_PNG: &[u8] = include_bytes!("../assets/case_transparent.png");
 /// Empty-deck image + transparent cassette sprite for the load animation.
-const EMPTY_DECK_PNG: &[u8] = include_bytes!("../assets/skins/belt/empty.png");
 const CASSETTE_SPRITE_PNG: &[u8] = include_bytes!("../assets/cassette_sprite.png");
 /// Keyed open cassette-case sprite (green removed), for the case-open animation.
 const CASE_OPEN_PNG: &[u8] = include_bytes!("../assets/case_open.png");
@@ -1512,6 +1678,22 @@ const EXTRA_BGS: &[&[u8]] = &[
 ];
 
 /// A flat solid-colour backdrop (a tiny image stretched to fill).
+/// The one background colour behind every screen: the same charcoal the
+/// deck's letterbox uses, so the area around the deck and behind the controls
+/// never changes shade between screens or during the animations.
+const PAGE_BG: cosmic::iced::Color = cosmic::iced::Color::from_rgb(0.09, 0.09, 0.11);
+
+fn with_page_bg(content: Element<'_, Message>) -> Element<'_, Message> {
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .class(cosmic::theme::Container::custom(|_| cosmic::iced::widget::container::Style {
+            background: Some(cosmic::iced::Background::Color(PAGE_BG)),
+            ..Default::default()
+        }))
+        .into()
+}
+
 fn solid_bg(rgb: [u8; 3]) -> cosmic::widget::image::Handle {
     let px = [rgb[0], rgb[1], rgb[2], 255];
     let mut buf = Vec::with_capacity(4 * 4 * 4);
@@ -1636,12 +1818,3 @@ fn fmt_time(d: Duration) -> String {
     format!("{}:{:02}", s / 60, s % 60)
 }
 
-fn truncate(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        s.to_string()
-    } else {
-        let mut t: String = s.chars().take(max.saturating_sub(1)).collect();
-        t.push('…');
-        t
-    }
-}
