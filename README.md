@@ -18,7 +18,7 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Colour skins: Denim Belt, Red, Blue, Black, and White, cycled from the Player.
 - Swappable room backgrounds. Cycle the built-ins, add your own image, or remove ones you added. The choice applies to the rack, the album screen, and the insert animation.
 - Album-cover wallpaper behind the Player deck. Toggle the Wallpaper button to fill the space around the deck with the playing album's cover art; off by default, and the choice is remembered.
-- Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys. Albums sort by artist ignoring case, and the rack follows the playing tape unless you have browsed to another album.
+- Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys. Albums sort by artist ignoring case, and the rack follows the playing tape unless you have browsed to another album. Albums sort by artist ignoring case, and the rack follows the playing tape unless you have browsed to another album.
 - Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
 - Mechanical sound. The transport keys click, the tape seats with a clunk when it drops into the deck, holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary; if you build from source you can swap them for your own (see Assets).
 - About panel showing the version and a link to the project, reachable from the header on the Player, the Cassette Rack, and the album screen.
@@ -96,6 +96,8 @@ The bundle is sandboxed and ships its own icon theme, so the window controls ren
 ### Running outside COSMIC
 
 It is a native COSMIC app, but it runs on any Wayland desktop - GNOME, KDE Plasma, and the rest. On those, it draws its titlebar's minimize, maximize, and close buttons from the Adwaita icon theme, because the COSMIC icon theme isn't installed there and the buttons would otherwise render blank. The packages depend on Adwaita, so an installed package just works, and the Flatpak carries its own icon theme. If you build from source, install Adwaita yourself; it is in the dependency lists below.
+
+The app always uses its dark look, so it stays readable whatever theme your desktop uses.
 
 The app always uses its dark look, so it stays readable whatever theme your desktop uses.
 
