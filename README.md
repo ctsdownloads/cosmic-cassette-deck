@@ -98,7 +98,7 @@ curl -L -o /tmp/cosmic-cassette-deck.flatpak https://github.com/ctsdownloads/cos
 flatpak install --user -y /tmp/cosmic-cassette-deck.flatpak
 ```
 
-The link always points at the latest release, so the same two commands work for every update.
+The link always points at the latest release, so the same two commands work for every update. If you are already on the latest release, flatpak reports that this version is already installed. That means you are up to date.
 
 **NixOS** - the `.deb` and `.rpm` are no use to you. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) is your install route, and it covers three: `nix run` to try the app without installing it, `nix profile install` to install it with a single command, or adding it to your system flake so it is declarative and survives a rebuild. Nix compiles the app in all three cases; you never run cargo and you keep no checkout.
 
