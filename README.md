@@ -91,6 +91,15 @@ Use this on Arch, Debian, openSUSE, Mint, Pop!_OS, or anything else with no nati
 
 The bundle is sandboxed and ships its own icon theme, so the window controls render everywhere with no extra packages. It is not on Flathub, so it will not auto-update - grab the newer bundle from Releases and install it over the top.
 
+To install the newest release, or to update to it later, run:
+
+```sh
+curl -L -o /tmp/cosmic-cassette-deck.flatpak https://github.com/ctsdownloads/cosmic-cassette-deck/releases/latest/download/cosmic-cassette-deck.flatpak
+flatpak install --user -y /tmp/cosmic-cassette-deck.flatpak
+```
+
+The link always points at the latest release, so the same two commands work for every update.
+
 **NixOS** - the `.deb` and `.rpm` are no use to you. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) is your install route, and it covers three: `nix run` to try the app without installing it, `nix profile install` to install it with a single command, or adding it to your system flake so it is declarative and survives a rebuild. Nix compiles the app in all three cases; you never run cargo and you keep no checkout.
 
 ### Running outside COSMIC
