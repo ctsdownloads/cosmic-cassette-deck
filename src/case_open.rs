@@ -33,9 +33,9 @@ const TRAY_RECT: (f32, f32, f32, f32) = (478.0, 172.0, 923.0, 856.0); // where t
 const SPRITE_RATIO: f32 = 761.0 / 496.0;
 
 // Animation phase boundaries (fractions of the whole `t`).
-const CLOSED_END: f32 = 0.08; // brief closed hold before the swing
+pub const CLOSED_END: f32 = 0.08; // brief closed hold before the swing
 const SWING_END: f32 = 0.40; // lid finishes opening
-const LIFT_START: f32 = 0.46; // tape starts lifting out of the tray
+pub const LIFT_START: f32 = 0.46; // tape starts lifting out of the tray
 const LIFT_END: f32 = 0.58; // tape is off the top; cross-fade to the deck begins
 const FADE_END: f32 = 0.68; // deck fully shown; tape starts sliding into the window
 

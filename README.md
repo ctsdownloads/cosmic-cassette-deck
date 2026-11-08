@@ -20,7 +20,7 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Album-cover wallpaper behind the Player deck. Toggle the Wallpaper button to fill the space around the deck with the playing album's cover art; off by default, and the choice is remembered.
 - Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys. Albums sort by artist ignoring case, and the rack follows the playing tape unless you have browsed to another album.
 - Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
-- Mechanical sound. The transport keys click, the tape seats with a clunk when it drops into the deck, holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary; if you build from source you can swap them for your own (see Assets).
+- Mechanical sound. The transport keys click, the case snaps open, the tape rattles as it lifts out and slides into the deck, then seats with a clunk; eject pops it back out. Holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary; if you build from source you can swap them for your own (see Assets).
 - About panel showing the version and a link to the project, reachable from the header on the Player, the Cassette Rack, and the album screen.
 - MPRIS support for media keys, playerctl, and desktop panel controls.
 - Formats: MP3, FLAC, M4A/AAC, and WAV (rodio and symphonia).
@@ -239,7 +239,7 @@ Rust, libcosmic (its vendored iced fork, wgpu renderer, Wayland and winit), rodi
 
 Skin art lives in `assets/`, and the colour skins are recolored variants of the base deck.
 
-Sound effects are FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, and `end_clack`. They are compiled into the binary, so swapping them means building from source: replace a clip with your own recording under the same name and rebuild. (An installed `.deb` or `.rpm` has them baked in - there is no file on disk to change.) Only `wind_loop` repeats; it is stitched seamless in code, so any length works.
+Sound effects are FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, `end_clack`, `case_open`, `tape_lift`, `tape_slide`, and `eject_pop`. They are compiled into the binary, so swapping them means building from source: replace a clip with your own recording under the same name and rebuild. (An installed `.deb` or `.rpm` has them baked in - there is no file on disk to change.) Only `wind_loop` repeats; it is stitched seamless in code, so any length works. `case_open`, `tape_lift`, `tape_slide`, and `eject_pop` are cut from Freesound recordings released under Creative Commons 0 (public domain): [cassette.wav](https://freesound.org/people/moxobna/sounds/40164/) by moxobna, [cassette.wav](https://freesound.org/people/symphoid/sounds/159183/) by symphoid, and [Cassette Player Ejecting.wav](https://freesound.org/people/jpkweli/sounds/154756/) by jpkweli.
 
 ## License
 

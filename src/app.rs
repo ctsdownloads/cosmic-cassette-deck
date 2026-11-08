@@ -38,6 +38,9 @@ const CASE_ANIM: Duration = Duration::from_millis(1600);
 const EJECT_ANIM: Duration = Duration::from_millis(700);
 /// Tape swap at an album change: old tape out, short beat, new tape in.
 const SWAP_ANIM: Duration = Duration::from_millis(1300);
+/// Length of the tape-slide sound; it starts this long before the tape seats
+/// so the slide ends on the seat clunk.
+const SLIDE_SFX: Duration = Duration::from_millis(450);
 /// After an eject, the rack fades in from the deck's charcoal.
 const RACK_FADE: Duration = Duration::from_millis(280);
 /// Reel spin-up / spin-down time constant (seconds) on play, pause and stop.
@@ -426,6 +429,8 @@ impl App {
         }
         self.stop_winding();
         let _ = self.audio_tx.send(AudioCmd::Stop);
+        // The old tape pops out before the next one goes in.
+        let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::EjectPop));
         self.playing = false;
         self.skip_anim = None;
         self.incoming_label = self.render_label_for(album, track);
@@ -815,7 +820,20 @@ impl Application for App {
                     started,
                 } = self.screen
                 {
-                    if now.duration_since(started) >= CASE_ANIM {
+                    // Sounds: lid unlatches as it starts to swing, the tape
+                    // lifts out, then slides into the deck ending on the seat.
+                    let at = now.duration_since(started);
+                    let crossed = |mark: Duration| at >= mark && at.as_secs_f32() - dt < mark.as_secs_f32();
+                    for (mark, cue) in [
+                        (CASE_ANIM.mul_f32(crate::case_open::CLOSED_END), audio::Sfx::CaseOpen),
+                        (CASE_ANIM.mul_f32(crate::case_open::LIFT_START), audio::Sfx::TapeLift),
+                        (CASE_ANIM - SLIDE_SFX, audio::Sfx::TapeSlide),
+                    ] {
+                        if crossed(mark) {
+                            let _ = self.audio_tx.send(AudioCmd::Sfx(cue));
+                        }
+                    }
+                    if at >= CASE_ANIM {
                         // Tape drops in and seats as the case-open animation ends.
                         let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
                         self.load_track(album, track);
@@ -839,7 +857,13 @@ impl Application for App {
                     started,
                 } = self.screen
                 {
-                    if now.duration_since(started) >= SWAP_ANIM {
+                    // The new tape's slide ends on the seat clunk.
+                    let at = now.duration_since(started);
+                    let mark = SWAP_ANIM - SLIDE_SFX;
+                    if at >= mark && at.as_secs_f32() - dt < mark.as_secs_f32() {
+                        let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSlide));
+                    }
+                    if at >= SWAP_ANIM {
                         let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
                         self.load_track(album, track);
                     }
@@ -1055,7 +1079,7 @@ impl Application for App {
                 // Stop/eject key: pressed again while stopped, it ejects.
                 if self.stopped && self.current.is_some() && self.screen == Screen::Player {
                     self.stop_winding();
-                    let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
+                    let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::EjectPop));
                     self.screen = Screen::Eject { started: Instant::now() };
                     return Task::none();
                 }
