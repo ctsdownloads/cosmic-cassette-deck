@@ -159,7 +159,7 @@ Your choice applies to the rack, the J-card, and the insert animation, and is re
 
 - **Play** / **Pause**, plus stop, seek, and volume. Hold fast-forward or rewind to wind the tape.
 - **Stop** again while stopped ejects the tape and goes back to the rack.
-- Keyboard: **Space** plays and pauses, **S** stops (press it again to eject), **←** and **→** go to the previous and next song, and **↑** and **↓** turn the volume up and down. On the Cassette Rack, letter and number keys jump to the first artist starting with that letter instead; press it again for the next one.
+- Keyboard: **Space** plays and pauses, **S** stops (press it again to eject), **←** and **→** go to the previous and next song, and **↑** and **↓** turn the volume up and down. On the Cassette Rack, letter and number keys jump to the first artist starting with that letter instead; press it again for the next one. Type several letters quickly to spell more of the name, such as **meg** for Megadeth.
 - **Walkman** cycles the deck through its five colour skins.
 - **Wallpaper: On / Off** fills the space around the deck with the playing album's cover art. Off by default, and remembered. This is separate from the room background above.
 - **Music Rack** goes back to the shelf. **About** shows the version and a link to the project.

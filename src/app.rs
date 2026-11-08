@@ -47,6 +47,8 @@ const RACK_FADE: Duration = Duration::from_millis(280);
 /// shown picture always appears even when nothing else is moving.
 const SETTLE: Duration = Duration::from_millis(1200);
 const SETTLE_TICK: Duration = Duration::from_millis(100);
+/// Letters typed on the rack within this long of each other spell a name.
+const TYPE_AHEAD: Duration = Duration::from_millis(1000);
 /// Reel spin-up / spin-down time constant (seconds) on play, pause and stop.
 const REEL_TAU: f32 = 0.12;
 
@@ -173,6 +175,10 @@ pub struct App {
     show_about: bool,
     /// Folders card visible (a full-view panel, like About).
     show_folders: bool,
+    /// Letters typed on the rack in quick succession, and when the last one
+    /// came, so "meg" can land on Megadeth past Metallica.
+    typed: String,
+    typed_at: Instant,
     /// The window's size, saved so the next launch opens at it.
     window_size: Option<cosmic::iced::Size>,
 
@@ -743,6 +749,8 @@ impl Application for App {
             show_about: false,
             show_folders: false,
             window_size: None,
+            typed: String::new(),
+            typed_at: Instant::now(),
             current: None,
             audio_tx,
             status,
@@ -1454,11 +1462,26 @@ impl Application for App {
 
             Message::LetterKey(c) => {
                 if matches!(self.screen, Screen::Rack) {
+                    let lower: Vec<String> =
+                        self.library.iter().map(|a| a.artist.to_lowercase()).collect();
+                    // Letters typed within a second build a name: jump to the
+                    // first artist that starts with it ("meg" -> Megadeth).
+                    // The same letter again moves on to the next artist.
+                    let quick = self.typed_at.elapsed() < TYPE_AHEAD;
+                    self.typed_at = Instant::now();
+                    let repeat = self.typed.chars().all(|t| t == c);
+                    if quick && !self.typed.is_empty() && !repeat {
+                        self.typed.push(c);
+                        if let Some(i) = (0..lower.len()).find(|&i| lower[i].starts_with(&self.typed)) {
+                            self.browse_index = i;
+                            self.rebuild_fan();
+                        }
+                        return Task::none();
+                    }
+                    self.typed = c.to_string();
                     // The first tape of each artist whose name starts with the
                     // letter, in rack order. Pressing it again moves on to the
                     // next such artist, wrapping around.
-                    let lower: Vec<String> =
-                        self.library.iter().map(|a| a.artist.to_lowercase()).collect();
                     let starts: Vec<usize> = (0..lower.len())
                         .filter(|&i| lower[i].starts_with(c) && (i == 0 || lower[i - 1] != lower[i]))
                         .collect();
