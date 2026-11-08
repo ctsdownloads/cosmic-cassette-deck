@@ -1,6 +1,7 @@
 mod app;
 mod audio;
 mod cassette;
+mod jcard;
 mod label;
 mod library;
 mod mpris;
