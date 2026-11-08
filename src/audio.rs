@@ -50,6 +50,14 @@ pub enum Sfx {
     TapeSeat,
     /// Auto-stop clunk when a tape reaches its end.
     EndClack,
+    /// The cassette case's lid unlatches and swings open.
+    CaseOpen,
+    /// The tape is lifted out of the case.
+    TapeLift,
+    /// The tape slides down into the deck, just before it seats.
+    TapeSlide,
+    /// The deck's door springs open to let the tape out.
+    EjectPop,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -73,6 +81,10 @@ pub type Status = Arc<Mutex<SharedStatus>>;
 const SFX_KEY_PRESS: &[u8] = include_bytes!("../assets/sfx/key_press.flac");
 const SFX_TAPE_SEAT: &[u8] = include_bytes!("../assets/sfx/tape_seat.flac");
 const SFX_END_CLACK: &[u8] = include_bytes!("../assets/sfx/end_clack.flac");
+const SFX_CASE_OPEN: &[u8] = include_bytes!("../assets/sfx/case_open.flac");
+const SFX_TAPE_LIFT: &[u8] = include_bytes!("../assets/sfx/tape_lift.flac");
+const SFX_TAPE_SLIDE: &[u8] = include_bytes!("../assets/sfx/tape_slide.flac");
+const SFX_EJECT_POP: &[u8] = include_bytes!("../assets/sfx/eject_pop.flac");
 const SFX_WIND_LOOP: &[u8] = include_bytes!("../assets/sfx/wind_loop.flac");
 
 /// Effect loudness, independent of the music volume slider — UI feedback
@@ -376,6 +388,10 @@ struct SfxEngine {
     key_press: Option<Pcm>,
     tape_seat: Option<Pcm>,
     end_clack: Option<Pcm>,
+    case_open: Option<Pcm>,
+    tape_lift: Option<Pcm>,
+    tape_slide: Option<Pcm>,
+    eject_pop: Option<Pcm>,
     wind: Option<Pcm>,
 }
 
@@ -408,6 +424,10 @@ impl SfxEngine {
             key_press: load(SFX_KEY_PRESS, None, "key_press"),
             tape_seat: load(SFX_TAPE_SEAT, None, "tape_seat"),
             end_clack: load(SFX_END_CLACK, None, "end_clack"),
+            case_open: load(SFX_CASE_OPEN, None, "case_open"),
+            tape_lift: load(SFX_TAPE_LIFT, None, "tape_lift"),
+            tape_slide: load(SFX_TAPE_SLIDE, None, "tape_slide"),
+            eject_pop: load(SFX_EJECT_POP, None, "eject_pop"),
             wind: load(SFX_WIND_LOOP, Some(LOOP_XFADE_MS), "wind_loop"),
             wind_sink: None,
             handle,
@@ -421,6 +441,10 @@ impl SfxEngine {
             Sfx::KeyPress => &self.key_press,
             Sfx::TapeSeat => &self.tape_seat,
             Sfx::EndClack => &self.end_clack,
+            Sfx::CaseOpen => &self.case_open,
+            Sfx::TapeLift => &self.tape_lift,
+            Sfx::TapeSlide => &self.tape_slide,
+            Sfx::EjectPop => &self.eject_pop,
         };
         if let Some(pcm) = pcm {
             let src = PcmSource::new(pcm, false)
