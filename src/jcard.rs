@@ -9,8 +9,8 @@
 use ab_glyph::{point, Font, FontRef, PxScale, ScaleFont};
 use cosmic::widget::image;
 
-const FONT_REGULAR: &[u8] = include_bytes!("../assets/CourierPrime-Regular.ttf");
-const FONT_BOLD: &[u8] = include_bytes!("../assets/CourierPrime-Bold.ttf");
+pub const FONT_REGULAR: &[u8] = include_bytes!("../assets/CourierPrime-Regular.ttf");
+pub const FONT_BOLD: &[u8] = include_bytes!("../assets/CourierPrime-Bold.ttf");
 
 /// Drawn at twice the panel's design size so it stays sharp when scaled.
 const S: f32 = 2.0;
@@ -187,6 +187,12 @@ fn paper(w: usize, h: usize) -> Canvas {
         c.stroke((x, y), (x + len * ang.cos(), y + len * ang.sin()), 1.2, [150, 140, 120, alpha]);
     }
     c
+}
+
+/// A blank sheet of the J-card's aged paper, for the lyric sheet.
+pub fn paper_sheet() -> image::Handle {
+    let (w, h) = (1100, 1400);
+    image::Handle::from_rgba(w as u32, h as u32, paper(w, h).px)
 }
 
 /// Split `text` into lines no wider than `max` pixels.

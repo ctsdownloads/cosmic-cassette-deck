@@ -17,6 +17,9 @@ use cosmic::widget::image;
 #[derive(Debug, Clone)]
 pub struct Track {
     pub title: String,
+    /// The song's own artist (its Artist tag), which can differ from the
+    /// album's on compilations and "feat." songs. Used to look up lyrics.
+    pub artist: String,
     pub path: PathBuf,
     pub duration: Duration,
     pub number: u32,
@@ -288,7 +291,7 @@ fn read_track(
     };
 
     let disc = tag.and_then(|t| t.disk()).unwrap_or(0);
-    let (title, album, artist, number, art) = match tag {
+    let (title, album, artist, song_artist, number, art) = match tag {
         Some(tag) => {
             let art = tag
                 .pictures()
@@ -316,12 +319,12 @@ fn read_track(
                 .get_string(&ItemKey::AlbumArtist)
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty() && has_album);
-            let artist = album_artist.unwrap_or_else(|| {
-                tag.artist()
-                    .filter(|_| has_artist)
-                    .map(|c| c.into_owned())
-                    .unwrap_or(fn_artist)
-            });
+            let song_artist = tag
+                .artist()
+                .filter(|_| has_artist)
+                .map(|c| c.into_owned())
+                .unwrap_or(fn_artist);
+            let artist = album_artist.unwrap_or_else(|| song_artist.clone());
             // No album tag -> single: album is the track title.
             let album = tag
                 .album()
@@ -333,12 +336,12 @@ fn read_track(
             } else {
                 fn_number
             };
-            (title, album, artist, number, art)
+            (title, album, artist, song_artist, number, art)
         }
         None => {
             // Untagged: parse the filename. Each file is its own single spine.
             let (artist, title, number) = parse_filename();
-            (title.clone(), title, artist, number, None)
+            (title.clone(), title, artist.clone(), artist, number, None)
         }
     };
 
@@ -346,6 +349,7 @@ fn read_track(
         (artist.clone(), album.clone()),
         Track {
             title,
+            artist: song_artist,
             path: path.to_path_buf(),
             duration,
             number,

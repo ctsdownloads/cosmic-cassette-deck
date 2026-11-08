@@ -4,6 +4,7 @@ mod cassette;
 mod jcard;
 mod label;
 mod library;
+mod lyrics;
 mod mpris;
 mod rack_scene;
 mod case_scene;
