@@ -82,6 +82,11 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.0.24" date="2026-11-08">
+      <description>
+        <p>Several music folders and Rescan, albums grouped by Album Artist, multi-disc order, duplicate songs played once, keyboard keys on the Player, and buttons that no longer get cut off.</p>
+      </description>
+    </release>
     <release version="0.0.23" date="2026-11-08">
       <description>
         <p>The J-card: the songs of each album on the printed insert from the case, split into side A and side B. Click a cassette on the rack to play it.</p>
