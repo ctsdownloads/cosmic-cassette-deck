@@ -61,6 +61,10 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
     let mut albums: BTreeMap<(String, String), Album> = BTreeMap::new();
     // Folder of each album's first song, for a cover image file beside it.
     let mut album_dirs: BTreeMap<(String, String), PathBuf> = BTreeMap::new();
+    // Which albums have songs in each folder: a cover image file only belongs
+    // to an album when its folder holds that album alone.
+    let mut dir_albums: BTreeMap<PathBuf, std::collections::BTreeSet<(String, String)>> =
+        BTreeMap::new();
     // How each album's artist and title are spelled across its songs, in the
     // order first seen, so the cassette can show the most common spelling.
     let mut spellings: BTreeMap<(String, String), Vec<((String, String), usize)>> =
@@ -93,6 +97,7 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
             }
             if let Some(dir) = entry.path().parent() {
                 album_dirs.entry(key.clone()).or_insert_with(|| dir.to_path_buf());
+                dir_albums.entry(dir.to_path_buf()).or_default().insert(key.clone());
             }
             let album = albums.entry(key.clone()).or_insert_with(|| Album {
                 title: shown.1.clone(),
@@ -134,13 +139,18 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
         }
     }
 
-    // No embedded picture? Use a cover image saved next to the songs. Loose
-    // songs are skipped: a cover.jpg in a mixed folder isn't theirs.
+    // No embedded picture? Use a cover image saved next to the songs, but
+    // only from a folder that holds this album alone: a cover.jpg in a folder
+    // of several albums (or loose songs) isn't theirs.
     for (key, album) in albums.iter_mut() {
         if album.art_bytes.is_some() || album.single {
             continue;
         }
-        if let Some(bytes) = album_dirs.get(key).and_then(|d| folder_cover(d)) {
+        let Some(dir) = album_dirs.get(key) else { continue };
+        if dir_albums.get(dir).is_some_and(|set| set.len() > 1) {
+            continue;
+        }
+        if let Some(bytes) = folder_cover(dir) {
             let bytes = std::sync::Arc::new(bytes);
             album.art = Some(image::Handle::from_bytes((*bytes).clone()));
             album.art_bytes = Some(bytes);

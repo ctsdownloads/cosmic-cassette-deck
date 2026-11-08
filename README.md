@@ -138,7 +138,7 @@ Your folder is remembered, so this is a one-time step. To point it somewhere els
 Each cassette shows its album's cover. The app uses the first one it finds:
 
 1. A picture stored in the song files' tags.
-2. An image in the album's folder named `cover`, `folder`, `front`, or `album` (`.jpg`, `.jpeg`, or `.png`).
+2. An image in the album's folder named `cover`, `folder`, `front`, or `album` (`.jpg`, `.jpeg`, or `.png`). It is only used when that folder holds just that one album, so keep one album per folder if you rely on cover image files.
 3. A download from the Cover Art Archive. If your tags carry a MusicBrainz release or release-group ID, that exact release's cover is used; otherwise the album is looked up by artist and album name.
 
 Loose songs with no Album tag are never looked up by name, so a single does not end up wearing the wrong album's cover. If a download fails because you are offline, it is tried again the next time the app starts.
