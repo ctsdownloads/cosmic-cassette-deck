@@ -143,7 +143,7 @@ Each cassette shows its album's cover. The app uses the first one it finds:
 
 Loose songs with no Album tag are never looked up by name, so a single does not end up wearing the wrong album's cover. If a download fails because you are offline, it is tried again the next time the app starts.
 
-Wrong cover, or none at all? Bring the album to the front of the rack and click **Change cover…** under it to pick an image (PNG, JPG, or WEBP). Your pick wins over everything above and is remembered.
+Wrong cover, or none at all? Bring the album to the front of the rack and click **Change cover** to pick an image (PNG, JPG, or WEBP). Your pick wins over everything above and is remembered.
 
 ### Change the room background
 
