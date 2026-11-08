@@ -126,7 +126,7 @@ The app always uses its dark look, so it stays readable whatever theme your desk
 
 Click **Open Folder** and point it at your music directory. The app scans it recursively, reads the tags, groups the files into album cassettes, and fills the rack. Click a cassette to play it.
 
-Files are grouped into albums by their Artist and Album tags (read with lofty), so each album is one cassette no matter how many songs it holds, and its tracks play in track-number order. Files with no tags fall back to their `Artist - Title` filename, and each becomes its own single. Formats: MP3, FLAC, M4A/AAC, and WAV.
+Files are grouped into albums by their Artist and Album tags (read with lofty), so each album is one cassette no matter how many songs it holds, and its tracks play in track-number order. Tags that differ only in capital letters, extra spaces, or curly versus straight quotes still count as the same album, so one song tagged "...And Justice For All" stays on the same cassette as the rest; the cassette shows the spelling most of its songs use. Files with no tags fall back to their `Artist - Title` filename, and each becomes its own single. Formats: MP3, FLAC, M4A/AAC, and WAV.
 
 Your folder is remembered, so this is a one-time step. To point it somewhere else, click **Open Folder** again.
 
