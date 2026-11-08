@@ -15,13 +15,14 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 - Eject and tape swap. Press Stop while stopped and the tape slides up out of the window, then the rack fades in. When an album ends and the next one starts, the old tape slides out and the next album's tape slides in.
 - Keys that move like a real deck's. Pressed keys sink into the chassis and spring back; Play stays latched down while the tape plays and pops up on pause or stop. The FUNCT switch slides along its slot. Each colour skin shows its own casing behind them.
 - Dynamic label. Song and album come from your file tags, rasterized with ab_glyph and rotated (working around iced's lack of rotated canvas text), regenerated on track change rather than per frame.
+- J-card. Each album has the printed insert from its case: its songs typed in Courier Prime on aged card, split between SIDE A and SIDE B by running time, with dot leaders and lengths from your files. Open it from the rack, or click the tape label on the Player to see the tape in the deck, its playing song ticked in pencil.
 - Colour skins: Denim Belt, Red, Blue, Black, and White, cycled from the Player.
-- Swappable room backgrounds. Cycle the built-ins, add your own image, or remove ones you added. The choice applies to the rack, the album screen, and the insert animation.
+- Swappable room backgrounds. Cycle the built-ins, add your own image, or remove ones you added. The choice applies to the rack, the J-card, and the insert animation.
 - Album-cover wallpaper behind the Player deck. Toggle the Wallpaper button to fill the space around the deck with the playing album's cover art; off by default, and the choice is remembered.
 - Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys, or type a letter to jump to the artists that start with it. Albums sort by artist ignoring case, and the rack follows the playing tape unless you have browsed to another album.
 - Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
 - Mechanical sound. The transport keys click, the case snaps open, the tape rattles as it lifts out and slides into the deck, then seats with a clunk; eject pops it back out. Holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary; if you build from source you can swap them for your own (see Assets).
-- About panel showing the version and a link to the project, reachable from the header on the Player, the Cassette Rack, and the album screen.
+- About panel showing the version and a link to the project, reachable from the header on the Player, the Cassette Rack, and the J-card.
 - MPRIS support for media keys, playerctl, and desktop panel controls.
 - Formats: MP3, FLAC, M4A/AAC, and WAV (rodio and symphonia).
 
@@ -33,7 +34,9 @@ The Cassette Rack fans through your library, one cassette per album, with cover 
 
 Click the cassette at the front, or Play, to put it in the deck and start it.
 
-![Album screen](docs/album.png)
+Click **J-card** to read the insert from the case: the album's songs, typed on aged card, split between SIDE A and SIDE B by running time, with each song's length. **Side B ›** turns it over. Clicking the tape label on the Player opens the J-card of the tape in the deck, with a pencil tick beside the song that's playing.
+
+![J-card](docs/jcard.png)
 
 The case hinges open, the tape lifts out, and it slides into the deck's window before playback begins.
 
@@ -150,7 +153,7 @@ The room behind the cassettes is swappable. On the Cassette Rack screen:
 - **Image** - add your own. PNG, JPG, or WEBP.
 - **Remove** - remove the one currently showing, if it is one you added. The built-ins stay.
 
-Your choice applies to the rack, the album screen, and the insert animation, and is remembered between runs.
+Your choice applies to the rack, the J-card, and the insert animation, and is remembered between runs.
 
 ### On the Player
 
@@ -160,6 +163,7 @@ Your choice applies to the rack, the album screen, and the insert animation, and
 - **Walkman** cycles the deck through its five colour skins.
 - **Wallpaper: On / Off** fills the space around the deck with the playing album's cover art. Off by default, and remembered. This is separate from the room background above.
 - **Music Rack** goes back to the shelf. **About** shows the version and a link to the project.
+- Click the tape label to open that tape's J-card.
 
 Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf, and after the last one starts over from the first. To move between songs, click **FUNCT** on the deck so fast-forward and rewind skip to the next or previous song instead of winding the tape; click it again to go back to winding. Your keyboard's media keys and your desktop's player controls also skip songs. The label always shows the song that is playing.
 
@@ -238,6 +242,8 @@ Rust, libcosmic (its vendored iced fork, wgpu renderer, Wayland and winit), rodi
 ## Assets
 
 Skin art lives in `assets/`, and the colour skins are recolored variants of the base deck.
+
+The J-card is set in [Courier Prime](https://github.com/quoteunquoteapps/CourierPrime) (`assets/CourierPrime-*.ttf`), used under the SIL Open Font License 1.1; the license is in `assets/CourierPrime-OFL.txt`.
 
 Sound effects are FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, `end_clack`, `case_open`, `tape_lift`, `tape_slide`, and `eject_pop`. They are compiled into the binary, so swapping them means building from source: replace a clip with your own recording under the same name and rebuild. (An installed `.deb` or `.rpm` has them baked in - there is no file on disk to change.) Only `wind_loop` repeats; it is stitched seamless in code, so any length works. `case_open`, `tape_lift`, `tape_slide`, and `eject_pop` are cut from Freesound recordings released under Creative Commons 0 (public domain): [cassette.wav](https://freesound.org/people/moxobna/sounds/40164/) by moxobna, [cassette.wav](https://freesound.org/people/symphoid/sounds/159183/) by symphoid, and [Cassette Player Ejecting.wav](https://freesound.org/people/jpkweli/sounds/154756/) by jpkweli.
 

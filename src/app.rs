@@ -53,10 +53,10 @@ const REPO_URL: &str = "https://github.com/ctsdownloads/cosmic-cassette-deck";
 enum Screen {
     Player,
     Rack,
-    /// Case reveal: the selected album's cassette case, big, cover on the
-    /// J-card, over the dimmed rack. Play from here or click out to return.
-    Reveal(usize),
-    /// Case-open animation: the reveal case swings open, the tape lifts out and
+    /// The album's J-card: its song list, one side at a time, over the room.
+    /// `side` is 0 for side A, 1 for side B.
+    JCard { album: usize, side: u8 },
+    /// Case-open animation: the case swings open, the tape lifts out and
     /// drops into the walkman. Carries the track to load and when it started.
     CaseOpen {
         album: usize,
@@ -114,9 +114,12 @@ pub enum Message {
     LibraryLoaded { albums: Vec<Album>, skipped: usize },
     ShowRack,
     ShowPlayer,
-    LabelClicked, // clicking the deck label opens the current album art
-    CloseReveal,
-    OpenCase { album: usize, track: usize }, // click the reveal case: open it, then load
+    LabelClicked, // clicking the deck label opens the playing tape's J-card
+    ShowJCard(usize),
+    FlipJCard,
+    Redraw,
+    CloseJCard,
+    OpenCase { album: usize, track: usize }, // open the case, then load
     TogglePlay,
     Stop,
     Next,
@@ -179,6 +182,8 @@ pub struct App {
     /// Composed case sprites for the current fan window (centre first).
     fan_cases: Vec<cosmic::widget::image::Handle>,
     label_img: Option<cosmic::widget::image::Handle>,
+    /// The J-card side on screen, drawn when it opens or its song changes.
+    jcard_img: Option<cosmic::widget::image::Handle>,
     /// Label for the track an insert animation is loading, rendered when the
     /// animation starts so the tape slides in already labelled.
     incoming_label: Option<cosmic::widget::image::Handle>,
@@ -258,6 +263,23 @@ impl App {
 
     fn push_mpris(&self, u: MprisUpdate) {
         let _ = self.mpris_tx.send(u);
+    }
+
+    /// Draw the J-card for the album and side on screen, with a pencil tick
+    /// beside the song in the deck when it is this album's.
+    fn refresh_jcard(&mut self) {
+        let Screen::JCard { album, side } = self.screen else { return };
+        let Some(a) = self.library.get(album) else { return };
+        let tracks: Vec<(String, f32)> = a
+            .tracks
+            .iter()
+            .map(|t| (t.title.clone(), t.duration.as_secs_f32()))
+            .collect();
+        let playing = match self.current {
+            Some((cur, t)) if cur == album => Some(t),
+            _ => None,
+        };
+        self.jcard_img = Some(crate::jcard::render(&a.artist, &a.title, &tracks, side, playing));
     }
 
     /// Rebuild the fan window's composed case sprites around browse_index.
@@ -503,11 +525,28 @@ impl App {
         let old_album = self.current.map(|(a, _)| a);
         self.step_track_inner(offset);
 
-        if matches!(screen, Screen::Rack | Screen::Reveal(_)) {
+        if matches!(screen, Screen::Rack | Screen::JCard { .. }) {
             self.screen = screen;
         }
+        // On the J-card of the tape in the deck, follow the music: the next
+        // album's card when a new tape goes in, and the side with the song
+        // that's playing, so the pencil tick stays in view.
+        if let (Screen::JCard { album, side }, Some((new_album, track))) = (screen, self.current) {
+            if old_album == Some(album) {
+                let side = self
+                    .library
+                    .get(new_album)
+                    .map(|a| {
+                        let split = crate::jcard::side_b_start(&track_secs(a));
+                        u8::from(track >= split && split < a.tracks.len())
+                    })
+                    .unwrap_or(side);
+                self.screen = Screen::JCard { album: new_album, side };
+            }
+            self.refresh_jcard();
+        }
         let new_album = self.current.map(|(a, _)| a);
-        if matches!(screen, Screen::Rack | Screen::Reveal(_))
+        if matches!(screen, Screen::Rack | Screen::JCard { .. })
             && new_album != old_album
             && old_album == Some(self.browse_index)
         {
@@ -680,6 +719,7 @@ impl Application for App {
             art_gen: 0,
             fan_cases: Vec::new(),
             label_img: None,
+            jcard_img: None,
             incoming_label: None,
             incoming_backdrop: None,
             player_backdrop: None,
@@ -779,8 +819,18 @@ impl Application for App {
             }
         });
 
+        // A newly drawn J-card can miss the frame it first appears in; on a
+        // still screen nothing would draw it again, so keep a slow redraw
+        // going while the card is open.
+        let jcard = if matches!(self.screen, Screen::JCard { .. }) {
+            cosmic::iced::time::every(Duration::from_millis(250)).map(|_| Message::Redraw)
+        } else {
+            Subscription::none()
+        };
+
         Subscription::batch(vec![
             ticks,
+            jcard,
             keys,
             Subscription::run(mpris_commands),
             Subscription::run_with(self.art_gen, |_: &u64| art_results()),
@@ -804,7 +854,9 @@ impl Application for App {
                     | Message::ShowRack
                     | Message::ShowPlayer
                     | Message::LabelClicked
-                    | Message::CloseReveal
+                    | Message::ShowJCard(_)
+                    | Message::FlipJCard
+                    | Message::CloseJCard
                     | Message::OpenCase { .. }
                     | Message::CycleSkin
                     | Message::ToggleBackdrop
@@ -1005,7 +1057,7 @@ impl Application for App {
 
             Message::ArtLoaded(result) => {
                 // Match the fetched cover to its album; keep the raw bytes for
-                // compositing onto cases, store a Handle for the reveal, and
+                // compositing onto cases, store a Handle for the case, and
                 // rebuild the fan so the new cover appears.
                 if let Some(idx) = self
                     .library
@@ -1041,17 +1093,36 @@ impl Application for App {
                 let _ = std::process::Command::new("xdg-open").arg(REPO_URL).spawn();
             }
             Message::LabelClicked => {
-                // Open the currently-playing album's art screen.
-                if let Some((album, _track)) = self.current {
-                    if album < self.library.len() {
-                        self.screen = Screen::Reveal(album);
+                // Open the playing tape's J-card on the side with its song.
+                if let Some((album, track)) = self.current {
+                    if let Some(a) = self.library.get(album) {
+                        let split = crate::jcard::side_b_start(&track_secs(a));
+                        let side = u8::from(track >= split && split < a.tracks.len());
+                        self.screen = Screen::JCard { album, side };
+                        self.refresh_jcard();
                     }
                 }
             }
-            Message::CloseReveal => self.screen = Screen::Rack,
+            Message::ShowJCard(album) => {
+                if album < self.library.len() {
+                    self.screen = Screen::JCard { album, side: 0 };
+                    self.refresh_jcard();
+                }
+            }
+            Message::FlipJCard => {
+                if let Screen::JCard { album, side } = self.screen {
+                    self.screen = Screen::JCard { album, side: 1 - side };
+                    self.refresh_jcard();
+                }
+            }
+            Message::Redraw => {}
+            Message::CloseJCard => {
+                self.screen = Screen::Rack;
+                self.jcard_img = None;
+            }
 
             Message::OpenCase { album, track } => {
-                // Clicking the reveal case plays the open → lift → insert
+                // Clicking a cassette or Play plays the open → lift → insert
                 // animation; the track loads when it completes (Tick handler).
                 self.incoming_label = self.render_label_for(album, track);
                 self.incoming_backdrop = self.backdrop_for(album);
@@ -1308,11 +1379,11 @@ impl Application for App {
         let content = match self.screen {
             Screen::Player | Screen::Eject { .. } | Screen::Swap { .. } => self.player_view(),
             Screen::Rack => self.rack_view(),
-            Screen::Reveal(i) => self.reveal_view(i),
+            Screen::JCard { album, side } => self.jcard_view(album, side),
             Screen::CaseOpen { started, .. } => self.case_open_view(started),
         };
         // Backdrop layers behind the content, bottom to top, each with an
-        // opacity: the 80s bedroom behind Reveal/CaseOpen, and the album-cover
+        // opacity: the 80s bedroom behind the J-card/CaseOpen, and the album-cover
         // wallpaper behind the Player deck (when on). Animations cross-fade
         // them so the background never jumps. The rack draws its own dimmed
         // bedroom in-canvas. Under everything is the charcoal page.
@@ -1345,7 +1416,7 @@ impl Application for App {
                 layers.extend(cover(&self.incoming_backdrop).map(|h| (h, 1.0 - a)));
                 layers.push((self.current_bg().clone(), a));
             }
-            Screen::Reveal(_) => layers.push((self.current_bg().clone(), 1.0)),
+            Screen::JCard { .. } => layers.push((self.current_bg().clone(), 1.0)),
             Screen::Rack => {}
         }
         layers.retain(|(_, a)| *a > 0.0);
@@ -1681,6 +1752,7 @@ let nav = self.deck_nav();
                             track: 0,
                         }),
                     )
+                    .push(button::standard("J-card").on_press(Message::ShowJCard(self.browse_index)))
                     .push(button::standard("Next ›").on_press(Message::BrowseStep(1))),
             )
             .push(
@@ -1708,27 +1780,29 @@ let nav = self.deck_nav();
             .into()
     }
 
-    /// Case reveal: the selected album's cassette case shown large, the cover
-    /// art filling the J-card, with a Play button. Backed by the rack.
-    fn reveal_view(&self, idx: usize) -> Element<'_, Message> {
+    /// The album's J-card, one side at a time, over the room. The album
+    /// title and the song in the deck sit on a dark backing so they read on
+    /// any background.
+    fn jcard_view(&self, idx: usize, side: u8) -> Element<'_, Message> {
         let Some(album) = self.library.get(idx) else {
             return self.rack_view();
+        };
+        let dark = |_theme: &cosmic::Theme| cosmic::iced::widget::container::Style {
+            background: Some(cosmic::iced::Background::Color(cosmic::iced::Color::from_rgba(
+                0.0, 0.0, 0.0, 0.62,
+            ))),
+            border: cosmic::iced::Border {
+                radius: 8.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
         };
 
         // Consistent top nav — same controls available as every other screen.
         let header = widget::row::with_children(vec![
             container(text::title2("Music Rack").class(cosmic::iced::Color::WHITE))
                 .padding(8)
-                .style(|_theme| cosmic::iced::widget::container::Style {
-                    background: Some(cosmic::iced::Background::Color(
-                        cosmic::iced::Color::from_rgba(0.0, 0.0, 0.0, 0.55),
-                    )),
-                    border: cosmic::iced::Border {
-                        radius: 8.0.into(),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                })
+                .style(dark)
                 .into(),
             widget::Space::new().width(Length::Fill).into(),
             button::suggested("Player").on_press(Message::ShowPlayer).into(),
@@ -1739,63 +1813,66 @@ let nav = self.deck_nav();
         .spacing(12)
         .align_y(Alignment::Center);
 
-        // Compose the cover onto the TRANSPARENT case (no black box) — same as
-        // the fan. Prefer scraped bytes, else embedded art.
-        let cover_bytes = self
-            .cover_bytes
-            .get(&idx)
-            .map(|b| b.as_slice())
-            .or_else(|| album.art_bytes.as_ref().map(|b| b.as_slice()));
-        let composed = crate::case_scene::compose(&self.case_png, cover_bytes);
-        // Clicking the case plays the open → lift → insert animation.
-        let case: Element<Message> = widget::mouse_area(
-            widget::image(composed).width(Length::Fixed(340.0)),
-        )
-        .on_press(Message::OpenCase { album: idx, track: 0 })
-        .into();
-
-        let title = text::title3(format!("{} – {}", album.artist, album.title));
-        // If THIS album is the one playing, also show the current song title.
-        let now_playing: Option<Element<Message>> = match self.current {
-            Some((a, t)) if a == idx => album
-                .tracks
-                .get(t)
-                .map(|track| text::body(format!("♪ Now playing: {}", track.title)).into()),
-            _ => None,
+        let card: Element<Message> = match &self.jcard_img {
+            Some(h) => widget::image(h.clone())
+                .content_fit(cosmic::iced::ContentFit::Contain)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into(),
+            None => widget::Space::new().width(Length::Fill).height(Length::Fill).into(),
         };
+
+        let mut info = widget::column::with_capacity(2)
+            .spacing(4)
+            .align_x(Alignment::Center)
+            .push(
+                text::title3(format!("{} – {}", album.artist, album.title))
+                    .class(cosmic::iced::Color::WHITE),
+            );
+        // If THIS album is in the deck, also show the song that is playing.
+        if let Some((a, t)) = self.current {
+            if a == idx {
+                if let Some(track) = album.tracks.get(t) {
+                    info = info.push(
+                        text::body(format!("♪ Now playing: {}", track.title))
+                            .class(cosmic::iced::Color::WHITE),
+                    );
+                }
+            }
+        }
+        let info = container(info).padding([8, 16]).style(dark);
+
         // Play/Pause reflects state: if THIS album is the one playing, show
         // Pause (and toggle); otherwise show Play (and start it).
-        let this_album_playing =
-            matches!(self.current, Some((a, _)) if a == idx) && self.playing;
-        let play_btn = if this_album_playing {
+        let this_album_loaded = matches!(self.current, Some((a, _)) if a == idx);
+        let play_btn = if this_album_loaded && self.playing {
             button::suggested("⏸ Pause").on_press(Message::TogglePlay)
-        } else if matches!(self.current, Some((a, _)) if a == idx) {
+        } else if this_album_loaded && !self.stopped {
             // This album is loaded but paused — resume via toggle.
             button::suggested("▶ Play").on_press(Message::TogglePlay)
         } else {
             // A different (or no) album — start this one via the case-open.
             button::suggested("▶ Play").on_press(Message::OpenCase { album: idx, track: 0 })
         };
-        // Play + Back side by side, in a fixed row that always stays on screen.
-        let buttons = widget::row::with_capacity(2)
+        let has_side_b = crate::jcard::side_b_start(&track_secs(album)) < album.tracks.len();
+        let mut buttons = widget::row::with_capacity(3)
             .spacing(12)
             .align_y(Alignment::Center)
-            .push(play_btn)
-            .push(button::suggested("← Back to rack").on_press(Message::CloseReveal));
+            .push(play_btn);
+        if has_side_b {
+            let flip = if side == 0 { "Side B ›" } else { "‹ Side A" };
+            buttons = buttons.push(button::suggested(flip).on_press(Message::FlipJCard));
+        }
+        let buttons = buttons.push(button::suggested("← Back to rack").on_press(Message::CloseJCard));
 
-        // Case takes the flexible middle; title + buttons pinned in a footer
-        // that's always visible (the case alone must not consume the buttons).
-        let mut body = widget::column::with_capacity(4)
+        let body = widget::column::with_capacity(3)
             .spacing(14)
             .align_x(Alignment::Center)
-            .push(container(case).center_x(Length::Fill).height(Length::Fill))
-            .push(title);
-        if let Some(np) = now_playing {
-            body = body.push(np);
-        }
-        let body = body.push(buttons);
+            .push(container(card).center_x(Length::Fill).height(Length::Fill))
+            .push(info)
+            .push(buttons);
 
-        // Header pinned at top; body (case + footer controls) fills the rest.
+        // Header pinned at top; body (card + footer controls) fills the rest.
         widget::column::with_capacity(2)
             .spacing(10)
             .padding(20)
@@ -1867,6 +1944,11 @@ fn gradient_bg(top: [u8; 3], bot: [u8; 3]) -> cosmic::widget::image::Handle {
         buf.push(255);
     }
     cosmic::widget::image::Handle::from_rgba(1, h, buf)
+}
+
+/// Each song's length in seconds, in play order.
+fn track_secs(a: &Album) -> Vec<f32> {
+    a.tracks.iter().map(|t| t.duration.as_secs_f32()).collect()
 }
 
 fn album_art_key(a: &Album) -> String {
