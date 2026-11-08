@@ -59,6 +59,10 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
     let mut albums: BTreeMap<(String, String), Album> = BTreeMap::new();
     // Folder of each album's first song, for a cover image file beside it.
     let mut album_dirs: BTreeMap<(String, String), PathBuf> = BTreeMap::new();
+    // How each album's artist and title are spelled across its songs, in the
+    // order first seen, so the cassette can show the most common spelling.
+    let mut spellings: BTreeMap<(String, String), Vec<((String, String), usize)>> =
+        BTreeMap::new();
     let mut skipped: usize = 0;
 
     for entry in walkdir::WalkDir::new(&dir)
@@ -72,17 +76,25 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
             })
         })
     {
-        let Some((key, track, art_bytes, info)) = read_track(entry.path()) else {
+        let Some((shown, track, art_bytes, info)) = read_track(entry.path()) else {
             skipped += 1;
             continue;
         };
+        // Songs share a cassette when their tags match apart from capitals,
+        // extra spaces or curly vs straight quotes.
+        let key = (match_key(&shown.0), match_key(&shown.1));
         {
+            let seen = spellings.entry(key.clone()).or_default();
+            match seen.iter_mut().find(|(s, _)| *s == shown) {
+                Some((_, n)) => *n += 1,
+                None => seen.push((shown.clone(), 1)),
+            }
             if let Some(dir) = entry.path().parent() {
                 album_dirs.entry(key.clone()).or_insert_with(|| dir.to_path_buf());
             }
             let album = albums.entry(key.clone()).or_insert_with(|| Album {
-                title: key.1.clone(),
-                artist: key.0.clone(),
+                title: shown.1.clone(),
+                artist: shown.0.clone(),
                 art: None,
                 art_bytes: None,
                 tracks: Vec::new(),
@@ -103,6 +115,20 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
                 }
             }
             album.tracks.push(track);
+        }
+    }
+
+    // Show the spelling most of the album's songs use (first seen on a tie).
+    for (key, album) in albums.iter_mut() {
+        if let Some(seen) = spellings.get(key) {
+            let mut best = &seen[0];
+            for s in seen {
+                if s.1 > best.1 {
+                    best = s;
+                }
+            }
+            album.artist = best.0 .0.clone();
+            album.title = best.0 .1.clone();
         }
     }
 
@@ -128,6 +154,22 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
             .sort_by(|a, b| a.number.cmp(&b.number).then_with(|| a.title.cmp(&b.title)));
     }
     (out, skipped)
+}
+
+/// Text used to decide whether two tags name the same album or artist:
+/// lowercase, spaces trimmed and collapsed, curly quotes made straight.
+fn match_key(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '\u{2018}' | '\u{2019}' | '\u{201B}' | '\u{2032}' => '\'',
+            '\u{201C}' | '\u{201D}' | '\u{201F}' | '\u{2033}' => '"',
+            c => c,
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 /// First cover image file in `dir` (cover/folder/front/album .jpg/.jpeg/.png,
