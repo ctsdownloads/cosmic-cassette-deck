@@ -25,6 +25,7 @@ use crate::mpris::{self, MprisCmd, MprisUpdate};
 use crate::rack_scene::RackScene;
 use crate::artscrape::{self, ArtRequest, ArtResult};
 use crate::case_open::{self, CaseOpenScene};
+use crate::lyrics::{self, Outcome};
 
 const TICK: Duration = Duration::from_millis(16); // ~60 fps: keeps fast spool
 // rotation under the wagon-wheel aliasing limit of the spoked hubs
@@ -62,6 +63,9 @@ enum Screen {
     /// The album's J-card: its song list, one side at a time, over the room.
     /// `side` is 0 for side A, 1 for side B.
     JCard { album: usize, side: u8 },
+    /// A song's lyric sheet. `track` None follows the song that's playing;
+    /// `back` is the screen the sheet was opened from.
+    Lyrics { album: usize, track: Option<usize>, back: Back },
     /// Case-open animation: the case swings open, the tape lifts out and
     /// drops into the walkman. Carries the track to load and when it started.
     CaseOpen {
@@ -80,6 +84,26 @@ enum Screen {
         started: Instant,
     },
 }
+
+/// Where the lyric sheet goes back to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Back {
+    Player,
+    JCard(u8),
+}
+
+/// What's known about a song's lyrics.
+#[derive(Debug, Clone)]
+enum LyricState {
+    Looking,
+    Missing,
+    /// LRCLIB couldn't be reached at that moment; asked again a minute later.
+    Unreachable(Instant),
+    Found(Arc<lyrics::Lyrics>),
+}
+
+/// How long to wait before asking LRCLIB again after it couldn't be reached.
+const LYRICS_RETRY: Duration = Duration::from_secs(60);
 
 impl Screen {
     /// An animation owns the screen; user input is ignored until it ends.
@@ -135,9 +159,18 @@ pub enum Message {
     ArrowKey(i32),
     /// Up/Down arrow on the Player: volume up or down.
     VolumeStep(i32),
-    /// Esc: close the About card or the J-card.
+    /// Esc: close the About or Folders card, the J-card or the lyric sheet.
     Escape,
     CloseJCard,
+    /// A song's lyrics were looked up.
+    LyricsLoaded(PathBuf, Outcome),
+    /// The Player's Lyrics button: the sheet for the song that's playing.
+    ShowLyrics,
+    /// The J-card's Lyrics button: the album's sheet.
+    ShowAlbumLyrics(usize),
+    /// Previous (-1) or next (+1) song with lyrics on the sheet's album.
+    LyricsStep(i32),
+    CloseLyrics,
     OpenCase { album: usize, track: usize }, // open the case, then load
     TogglePlay,
     Stop,
@@ -213,6 +246,10 @@ pub struct App {
     jcard_img: Option<cosmic::widget::image::Handle>,
     /// Keep redrawing until then, so a newly shown picture appears.
     redraw_until: Option<Instant>,
+    /// Lyrics per song file, as they're looked up.
+    lyrics: HashMap<PathBuf, LyricState>,
+    /// The aged paper behind the lyric sheet.
+    lyric_paper: cosmic::widget::image::Handle,
     /// Label for the track an insert animation is loading, rendered when the
     /// animation starts so the tape slides in already labelled.
     incoming_label: Option<cosmic::widget::image::Handle>,
@@ -293,6 +330,51 @@ impl App {
 
     fn push_mpris(&self, u: MprisUpdate) {
         let _ = self.mpris_tx.send(u);
+    }
+
+    /// Whether a song has lyrics to show.
+    fn has_lyrics(&self, album: usize, track: usize) -> bool {
+        self.library
+            .get(album)
+            .and_then(|a| a.tracks.get(track))
+            .is_some_and(|t| matches!(self.lyrics.get(&t.path), Some(LyricState::Found(_))))
+    }
+
+    /// Look up lyrics for the song in the deck, and for every song on the
+    /// album whose J-card or lyric sheet is open, unless already known.
+    fn want_lyrics(&mut self) -> Vec<Task<Message>> {
+        let mut wanted: Vec<(usize, usize)> = self.current.into_iter().collect();
+        if let Screen::JCard { album, .. } | Screen::Lyrics { album, .. } = self.screen {
+            if let Some(a) = self.library.get(album) {
+                wanted.extend((0..a.tracks.len()).map(|t| (album, t)));
+            }
+        }
+        let mut tasks = Vec::new();
+        for (a, t) in wanted {
+            let Some(album) = self.library.get(a) else { continue };
+            let Some(track) = album.tracks.get(t) else { continue };
+            match self.lyrics.get(&track.path) {
+                None => {}
+                Some(LyricState::Unreachable(at)) if at.elapsed() >= LYRICS_RETRY => {}
+                Some(_) => continue,
+            }
+            self.lyrics.insert(track.path.clone(), LyricState::Looking);
+            let req = lyrics::Request {
+                path: track.path.clone(),
+                artist: track.artist.clone(),
+                title: track.title.clone(),
+                album: (!album.single).then(|| album.title.clone()),
+                secs: track.duration.as_secs_f32(),
+            };
+            tasks.push(cosmic::task::future(async move {
+                let path = req.path.clone();
+                let out = tokio::task::spawn_blocking(move || lyrics::lookup(&req))
+                    .await
+                    .unwrap_or(Outcome::Offline);
+                Message::LyricsLoaded(path, out)
+            }));
+        }
+        tasks
     }
 
     /// Draw the J-card for the album and side on screen, with a pencil tick
@@ -555,8 +637,14 @@ impl App {
         let old_album = self.current.map(|(a, _)| a);
         self.step_track_inner(offset);
 
-        if matches!(screen, Screen::Rack | Screen::JCard { .. }) {
+        if matches!(screen, Screen::Rack | Screen::JCard { .. } | Screen::Lyrics { .. }) {
             self.screen = screen;
+        }
+        // A lyric sheet following the music moves on to the next tape too.
+        if let (Screen::Lyrics { album, track: None, back }, Some((new_album, _))) = (screen, self.current) {
+            if old_album == Some(album) {
+                self.screen = Screen::Lyrics { album: new_album, track: None, back };
+            }
         }
         // On the J-card of the tape in the deck, follow the music: the next
         // album's card when a new tape goes in, and the side with the song
@@ -576,7 +664,7 @@ impl App {
             self.refresh_jcard();
         }
         let new_album = self.current.map(|(a, _)| a);
-        if matches!(screen, Screen::Rack | Screen::JCard { .. })
+        if matches!(screen, Screen::Rack | Screen::JCard { .. } | Screen::Lyrics { .. })
             && new_album != old_album
             && old_album == Some(self.browse_index)
         {
@@ -768,6 +856,8 @@ impl Application for App {
             label_img: None,
             jcard_img: None,
             redraw_until: None,
+            lyrics: HashMap::new(),
+            lyric_paper: crate::jcard::paper_sheet(),
             incoming_label: None,
             incoming_backdrop: None,
             player_backdrop: None,
@@ -804,6 +894,16 @@ impl Application for App {
             app.scanning = true;
             scan_task(music_dirs)
         };
+        // The lyric sheet is typed in Courier Prime, like the J-card. Loaded
+        // straight into the text system: a font load task sent before the
+        // window exists is dropped.
+        {
+            let mut fonts = cosmic::iced::advanced::graphics::text::font_system()
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
+            fonts.load_font(std::borrow::Cow::Borrowed(crate::jcard::FONT_REGULAR));
+            fonts.load_font(std::borrow::Cow::Borrowed(crate::jcard::FONT_BOLD));
+        }
         (app, startup)
     }
 
@@ -893,6 +993,112 @@ impl Application for App {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
+        let task = self.update_inner(message);
+        let wanted = self.want_lyrics();
+        // A lyric sheet following the music closes when the song playing
+        // has no lyrics, so it never shows an empty sheet.
+        if let Screen::Lyrics { album, track: None, .. } = self.screen {
+            let words = match self.current {
+                Some((a, t)) if a == album => self
+                    .library
+                    .get(a)
+                    .and_then(|al| al.tracks.get(t))
+                    .and_then(|song| self.lyrics.get(&song.path)),
+                _ => None,
+            };
+            let playing_here = matches!(self.current, Some((a, _)) if a == album);
+            if !playing_here || matches!(words, Some(LyricState::Missing | LyricState::Unreachable(_))) {
+                let _ = self.update_inner(Message::CloseLyrics);
+            }
+        }
+        if wanted.is_empty() {
+            task
+        } else {
+            Task::batch(std::iter::once(task).chain(wanted))
+        }
+    }
+
+    fn view(&self) -> Element<'_, Message> {
+        if self.show_folders {
+            return with_page_bg(self.folders_view());
+        }
+        if self.show_about {
+            return with_page_bg(self.about_view());
+        }
+        let content = match self.screen {
+            Screen::Player | Screen::Eject { .. } | Screen::Swap { .. } => self.player_view(),
+            Screen::Rack => self.rack_view(),
+            Screen::JCard { album, side } => self.jcard_view(album, side),
+            Screen::Lyrics { album, track, back } => self.lyrics_view(album, track, back),
+            Screen::CaseOpen { started, .. } => self.case_open_view(started),
+        };
+        // Backdrop layers behind the content, bottom to top, each with an
+        // opacity: the 80s bedroom behind the J-card/CaseOpen, and the album-cover
+        // wallpaper behind the Player deck (when on). Animations cross-fade
+        // them so the background never jumps. The rack draws its own dimmed
+        // bedroom in-canvas. Under everything is the charcoal page.
+        let cover = |h: &Option<cosmic::widget::image::Handle>| {
+            if self.show_backdrop { h.clone() } else { None }
+        };
+        let mut layers: Vec<(cosmic::widget::image::Handle, f32)> = Vec::new();
+        match self.screen {
+            Screen::Player => {
+                layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0)));
+            }
+            Screen::Eject { started } => {
+                // The wallpaper leaves with the tape; the rack fades in after.
+                let t = started.elapsed().as_secs_f32() / EJECT_ANIM.as_secs_f32();
+                layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0 - eject_drop(t))));
+            }
+            Screen::Swap { started, .. } => {
+                // Old album's wallpaper cross-fades to the new one's while the
+                // window is empty between tapes.
+                let t = started.elapsed().as_secs_f32() / SWAP_ANIM.as_secs_f32();
+                let k = ((t - 0.40) / 0.10).clamp(0.0, 1.0);
+                layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0 - k)));
+                layers.extend(cover(&self.incoming_backdrop).map(|h| (h, k)));
+            }
+            Screen::CaseOpen { started, .. } => {
+                // The bedroom fades out as the deck fades in; the new album's
+                // wallpaper (if on) fades in under it, so the screen is already
+                // the player's when the tape lands.
+                let a = case_open::backdrop_alpha(started.elapsed().as_secs_f32() / CASE_ANIM.as_secs_f32());
+                layers.extend(cover(&self.incoming_backdrop).map(|h| (h, 1.0 - a)));
+                layers.push((self.current_bg().clone(), a));
+            }
+            Screen::JCard { .. } | Screen::Lyrics { .. } => {
+                layers.push((self.current_bg().clone(), 1.0))
+            }
+            Screen::Rack => {}
+        }
+        layers.retain(|(_, a)| *a > 0.0);
+        let page = if layers.is_empty() {
+            content
+        } else {
+            let mut stack: Vec<Element<Message>> = layers
+                .into_iter()
+                .map(|(h, a)| {
+                    widget::image(h)
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .content_fit(cosmic::iced::ContentFit::Cover)
+                        .opacity(a)
+                        .into()
+                })
+                .collect();
+            stack.push(container(content).width(Length::Fill).height(Length::Fill).into());
+            cosmic::iced::widget::Stack::with_children(stack)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        };
+        with_page_bg(page)
+    }
+}
+
+impl App {
+    /// Everything `update` does, before the lyrics bookkeeping.
+    fn update_inner(&mut self, message: Message) -> Task<Message> {
         if !matches!(message, Message::Tick(_) | Message::Redraw) {
             self.redraw_until = Some(Instant::now() + SETTLE);
         }
@@ -915,6 +1121,10 @@ impl Application for App {
                     | Message::ShowJCard(_)
                     | Message::FlipJCard
                     | Message::CloseJCard
+                    | Message::ShowLyrics
+                    | Message::ShowAlbumLyrics(_)
+                    | Message::LyricsStep(_)
+                    | Message::CloseLyrics
                     | Message::OpenCase { .. }
                     | Message::CycleSkin
                     | Message::ToggleBackdrop
@@ -1125,7 +1335,7 @@ impl Application for App {
                 if let Some(found) = playing_path.and_then(|p| find_track(&self.library, &p)) {
                     self.current = Some(found);
                     self.refresh_backdrop();
-                    if let Screen::JCard { album, .. } = self.screen {
+                    if let Screen::JCard { album, .. } | Screen::Lyrics { album, .. } = self.screen {
                         if album >= self.library.len() {
                             self.screen = Screen::Rack;
                         }
@@ -1236,6 +1446,8 @@ impl Application for App {
                     self.show_about = false;
                 } else if matches!(self.screen, Screen::JCard { .. }) {
                     return self.update(Message::CloseJCard);
+                } else if matches!(self.screen, Screen::Lyrics { .. }) {
+                    return self.update(Message::CloseLyrics);
                 }
             }
             Message::Redraw => {
@@ -1246,6 +1458,70 @@ impl Application for App {
             Message::CloseJCard => {
                 self.screen = Screen::Rack;
                 self.jcard_img = None;
+            }
+            Message::LyricsLoaded(path, out) => {
+                let state = match out {
+                    Outcome::Found(l) => LyricState::Found(l),
+                    Outcome::None => LyricState::Missing,
+                    Outcome::Offline => LyricState::Unreachable(Instant::now()),
+                };
+                self.lyrics.insert(path, state);
+            }
+            Message::ShowLyrics => {
+                if let Some((album, track)) = self.current {
+                    if self.has_lyrics(album, track) {
+                        self.screen = Screen::Lyrics { album, track: None, back: Back::Player };
+                    }
+                }
+            }
+            Message::ShowAlbumLyrics(album) => {
+                let side = match self.screen {
+                    Screen::JCard { side, .. } => side,
+                    _ => 0,
+                };
+                let back = Back::JCard(side);
+                // The song in the deck when it's on this album and has
+                // lyrics (and then the sheet follows the music), else the
+                // album's first song with lyrics.
+                let playing = self.current.filter(|&(a, t)| a == album && self.has_lyrics(a, t));
+                let first = self
+                    .library
+                    .get(album)
+                    .and_then(|a| (0..a.tracks.len()).find(|&t| self.has_lyrics(album, t)));
+                if playing.is_some() {
+                    self.screen = Screen::Lyrics { album, track: None, back };
+                } else if let Some(t) = first {
+                    self.screen = Screen::Lyrics { album, track: Some(t), back };
+                }
+            }
+            Message::LyricsStep(d) => {
+                if let Screen::Lyrics { album, track, back } = self.screen {
+                    let playing = self.current.filter(|&(a, _)| a == album).map(|(_, t)| t);
+                    let len = self.library.get(album).map_or(0, |a| a.tracks.len());
+                    if let Some(shown) = track.or(playing) {
+                        let found = if d < 0 {
+                            (0..shown).rev().find(|&t| self.has_lyrics(album, t))
+                        } else {
+                            (shown + 1..len).find(|&t| self.has_lyrics(album, t))
+                        };
+                        if let Some(t) = found {
+                            // Landing on the song in the deck follows the music again.
+                            let track = if Some(t) == playing { None } else { Some(t) };
+                            self.screen = Screen::Lyrics { album, track, back };
+                        }
+                    }
+                }
+            }
+            Message::CloseLyrics => {
+                if let Screen::Lyrics { album, back, .. } = self.screen {
+                    match back {
+                        Back::Player => self.screen = Screen::Player,
+                        Back::JCard(side) => {
+                            self.screen = Screen::JCard { album, side };
+                            self.refresh_jcard();
+                        }
+                    }
+                }
             }
 
             Message::OpenCase { album, track } => {
@@ -1513,80 +1789,6 @@ impl Application for App {
         }
         Task::none()
     }
-
-    fn view(&self) -> Element<'_, Message> {
-        if self.show_folders {
-            return with_page_bg(self.folders_view());
-        }
-        if self.show_about {
-            return with_page_bg(self.about_view());
-        }
-        let content = match self.screen {
-            Screen::Player | Screen::Eject { .. } | Screen::Swap { .. } => self.player_view(),
-            Screen::Rack => self.rack_view(),
-            Screen::JCard { album, side } => self.jcard_view(album, side),
-            Screen::CaseOpen { started, .. } => self.case_open_view(started),
-        };
-        // Backdrop layers behind the content, bottom to top, each with an
-        // opacity: the 80s bedroom behind the J-card/CaseOpen, and the album-cover
-        // wallpaper behind the Player deck (when on). Animations cross-fade
-        // them so the background never jumps. The rack draws its own dimmed
-        // bedroom in-canvas. Under everything is the charcoal page.
-        let cover = |h: &Option<cosmic::widget::image::Handle>| {
-            if self.show_backdrop { h.clone() } else { None }
-        };
-        let mut layers: Vec<(cosmic::widget::image::Handle, f32)> = Vec::new();
-        match self.screen {
-            Screen::Player => {
-                layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0)));
-            }
-            Screen::Eject { started } => {
-                // The wallpaper leaves with the tape; the rack fades in after.
-                let t = started.elapsed().as_secs_f32() / EJECT_ANIM.as_secs_f32();
-                layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0 - eject_drop(t))));
-            }
-            Screen::Swap { started, .. } => {
-                // Old album's wallpaper cross-fades to the new one's while the
-                // window is empty between tapes.
-                let t = started.elapsed().as_secs_f32() / SWAP_ANIM.as_secs_f32();
-                let k = ((t - 0.40) / 0.10).clamp(0.0, 1.0);
-                layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0 - k)));
-                layers.extend(cover(&self.incoming_backdrop).map(|h| (h, k)));
-            }
-            Screen::CaseOpen { started, .. } => {
-                // The bedroom fades out as the deck fades in; the new album's
-                // wallpaper (if on) fades in under it, so the screen is already
-                // the player's when the tape lands.
-                let a = case_open::backdrop_alpha(started.elapsed().as_secs_f32() / CASE_ANIM.as_secs_f32());
-                layers.extend(cover(&self.incoming_backdrop).map(|h| (h, 1.0 - a)));
-                layers.push((self.current_bg().clone(), a));
-            }
-            Screen::JCard { .. } => layers.push((self.current_bg().clone(), 1.0)),
-            Screen::Rack => {}
-        }
-        layers.retain(|(_, a)| *a > 0.0);
-        let page = if layers.is_empty() {
-            content
-        } else {
-            let mut stack: Vec<Element<Message>> = layers
-                .into_iter()
-                .map(|(h, a)| {
-                    widget::image(h)
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .content_fit(cosmic::iced::ContentFit::Cover)
-                        .opacity(a)
-                        .into()
-                })
-                .collect();
-            stack.push(container(content).width(Length::Fill).height(Length::Fill).into());
-            cosmic::iced::widget::Stack::with_children(stack)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into()
-        };
-        with_page_bg(page)
-    }
 }
 
 // ── Views ──────────────────────────────────────────────────────────────────
@@ -1724,6 +1926,10 @@ impl App {
             .on_press(Message::ToggleBackdrop)
             .into(),
         ];
+        // Lyrics only when the song in the deck has some.
+        if self.current.is_some_and(|(a, t)| self.has_lyrics(a, t)) {
+            nav_buttons.insert(1, button::suggested("Lyrics").on_press(Message::ShowLyrics).into());
+        }
         // Skin picker only when more than one skin exists (belt-only: hidden).
         if self.skins.len() > 1 {
             nav_buttons.push(
@@ -2049,6 +2255,10 @@ let nav = self.deck_nav();
             let flip = if side == 0 { "Side B ›" } else { "‹ Side A" };
             buttons.push(button::suggested(flip).on_press(Message::FlipJCard).into());
         }
+        // Lyrics only when at least one song on the album has some.
+        if (0..album.tracks.len()).any(|t| self.has_lyrics(idx, t)) {
+            buttons.push(button::suggested("Lyrics").on_press(Message::ShowAlbumLyrics(idx)).into());
+        }
         buttons.push(button::suggested("← Back to rack").on_press(Message::CloseJCard).into());
         let buttons = wrap_row(buttons);
 
@@ -2060,6 +2270,130 @@ let nav = self.deck_nav();
             .push(buttons);
 
         // Header pinned at top; body (card + footer controls) fills the rest.
+        widget::column::with_capacity(2)
+            .spacing(10)
+            .padding(20)
+            .push(header)
+            .push(body)
+            .into()
+    }
+
+    /// A song's lyric sheet: the words typed on aged paper, scrolling when
+    /// they run long, with the previous and next songs that have lyrics.
+    fn lyrics_view(&self, idx: usize, track: Option<usize>, back: Back) -> Element<'_, Message> {
+        use cosmic::iced::{font, Color, Font};
+        let Some(album) = self.library.get(idx) else {
+            return self.rack_view();
+        };
+        let dark = |_theme: &cosmic::Theme| cosmic::iced::widget::container::Style {
+            background: Some(cosmic::iced::Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.62))),
+            border: cosmic::iced::Border {
+                radius: 8.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let header = wrap_row(vec![
+            container(text::title2("Lyrics").class(Color::WHITE))
+                .padding(8)
+                .style(dark)
+                .into(),
+            button::suggested("Player").on_press(Message::ShowPlayer).into(),
+            button::suggested("Music Rack").on_press(Message::ShowRack).into(),
+            button::suggested("About").on_press(Message::ToggleAbout).into(),
+            button::suggested("Folders").on_press(Message::ToggleFolders).into(),
+        ]);
+
+        const INK: Color = Color::from_rgb(28.0 / 255.0, 26.0 / 255.0, 30.0 / 255.0);
+        let regular = Font::with_name("Courier Prime");
+        let bold = Font {
+            weight: font::Weight::Bold,
+            ..regular
+        };
+        let playing = self.current.filter(|&(a, _)| a == idx).map(|(_, t)| t);
+        let shown = track.or(playing);
+
+        let mut words = widget::column::with_capacity(64).spacing(7).width(Length::Fill);
+        match shown.and_then(|t| album.tracks.get(t)) {
+            Some(song) => {
+                words = words.push(widget::text(song.title.to_uppercase()).size(26).font(bold).class(INK));
+                let by = if album.single {
+                    song.artist.clone()
+                } else {
+                    format!("{} · {}", song.artist, album.title)
+                };
+                words = words
+                    .push(widget::text(by).size(17).font(regular).class(INK))
+                    .push(widget::Space::new().height(Length::Fixed(10.0)))
+                    .push(
+                        container(widget::Space::new().width(Length::Fill).height(Length::Fixed(2.0)))
+                            .width(Length::Fill)
+                            .style(|_theme: &cosmic::Theme| cosmic::iced::widget::container::Style {
+                                background: Some(cosmic::iced::Background::Color(INK)),
+                                ..Default::default()
+                            }),
+                    )
+                    .push(widget::Space::new().height(Length::Fixed(16.0)));
+                match self.lyrics.get(&song.path) {
+                    Some(LyricState::Found(l)) => {
+                        for line in &l.lines {
+                            words = if line.text.is_empty() {
+                                words.push(widget::Space::new().height(Length::Fixed(14.0)))
+                            } else {
+                                words.push(widget::text(line.text.as_str()).size(18).font(regular).class(INK))
+                            };
+                        }
+                    }
+                    Some(LyricState::Looking) | None => {
+                        words = words.push(widget::text("Looking up the lyrics…").size(18).font(regular).class(INK));
+                    }
+                    Some(LyricState::Missing | LyricState::Unreachable(_)) => {
+                        words = words.push(widget::text("No lyrics for this song.").size(18).font(regular).class(INK));
+                    }
+                }
+            }
+            None => {
+                words = words.push(widget::text("Nothing from this album is playing.").size(18).font(regular).class(INK));
+            }
+        }
+
+        let sheet = cosmic::iced::widget::Stack::with_children(vec![
+            widget::image(self.lyric_paper.clone())
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .content_fit(cosmic::iced::ContentFit::Fill)
+                .into(),
+            widget::scrollable(container(words).padding([36, 44]))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into(),
+        ])
+        .width(Length::Fill)
+        .height(Length::Fill);
+        let sheet = container(sheet).max_width(720.0).height(Length::Fill);
+
+        let len = album.tracks.len();
+        let prev = shown.and_then(|s| (0..s).rev().find(|&t| self.has_lyrics(idx, t)));
+        let next = shown.and_then(|s| (s + 1..len).find(|&t| self.has_lyrics(idx, t)));
+        let mut buttons: Vec<Element<Message>> = Vec::new();
+        if prev.is_some() {
+            buttons.push(button::suggested("‹ Previous song").on_press(Message::LyricsStep(-1)).into());
+        }
+        if next.is_some() {
+            buttons.push(button::suggested("Next song ›").on_press(Message::LyricsStep(1)).into());
+        }
+        let back_label = match back {
+            Back::Player => "← Back to player",
+            Back::JCard(_) => "← Back to J-card",
+        };
+        buttons.push(button::suggested(back_label).on_press(Message::CloseLyrics).into());
+
+        let body = widget::column::with_capacity(2)
+            .spacing(14)
+            .align_x(Alignment::Center)
+            .push(container(sheet).center_x(Length::Fill).height(Length::Fill))
+            .push(wrap_row(buttons));
+
         widget::column::with_capacity(2)
             .spacing(10)
             .padding(20)
@@ -2257,4 +2591,3 @@ fn fmt_time(d: Duration) -> String {
     let s = d.as_secs();
     format!("{}:{:02}", s / 60, s % 60)
 }
-

@@ -16,6 +16,7 @@ The deck is a real photograph. The reels spin, the keys press down, and every al
 - **Real keys:** they sink when pressed and spring back. Play stays down while the tape plays and pops up on pause or stop.
 - **Printed label:** the tape's label shows the song and album from your music files.
 - **J-card:** the folded insert from the cassette case, with the album's songs typed out on old paper and split into Side A and Side B.
+- **Lyrics:** a lyric sheet for the song that's playing, when its lyrics can be found.
 - **Cassette Rack:** flip through your albums like a shelf of tapes, with their covers, sorted by artist. It follows the tape that's playing and marks it "♪ In the deck".
 - **Five colours:** Denim Belt, Red, Blue, Black and White.
 - **Your own backgrounds:** swap the room behind the rack, or add a picture of your own.
@@ -34,6 +35,10 @@ The deck is a real photograph. The reels spin, the keys press down, and every al
 **J-card:** click **J-card** to read the album's songs. **Side B ›** turns it over. Click the tape label on the Player to see the J-card of the tape that's playing, with a pencil tick beside the current song.
 
 ![J-card](docs/jcard.png)
+
+**Lyrics:** click **Lyrics** on the Player or the J-card to read the words. The button only shows up when the song has lyrics.
+
+![Lyrics](docs/lyrics.png)
 
 **Loading a tape:** the case opens, the tape lifts out and slides into the deck.
 
@@ -139,6 +144,17 @@ Each cassette uses the first cover it finds:
 - **Offline:** a cover that fails to download is tried again the next time the app starts.
 - **Wrong cover?** Bring the album to the front of the rack and click **Change cover** to pick an image (PNG, JPG or WEBP). Your pick wins over everything else and is remembered.
 
+### Lyrics
+
+The **Lyrics** button shows up on the Player and the J-card when lyrics are found, and stays hidden when there are none.
+
+- **Where lyrics come from:** first the song file's own tags, then a `.lrc` file next to the song with the same name, then [LRCLIB](https://lrclib.net), a free online lyrics library.
+- **Follows the music:** while the sheet shows the song that's playing, it moves on with the music. When a song with no lyrics comes on, the sheet closes.
+- **Previous song and Next song:** move between the album's songs that have lyrics.
+- **Instrumentals:** no button.
+- **Looked up once:** lyrics from LRCLIB are saved, so after the first time they show up straight away, even offline. A song LRCLIB had nothing for is checked again two weeks later.
+- **Offline:** if LRCLIB can't be reached, the button stays hidden and it tries again a minute later.
+
 ### The room background
 
 On the Cassette Rack:
@@ -157,6 +173,7 @@ Your choice is used on the rack, the J-card and the tape loading animation, and 
 - **Walkman:** cycles the five colours.
 - **Wallpaper:** fills the space around the deck with the album cover. Off unless you turn it on.
 - **Tape label:** click it to open that tape's J-card.
+- **Lyrics:** opens the lyric sheet for the song that's playing. Only shown when it has lyrics.
 - **Music Rack:** back to the shelf.
 - **About:** shows the version and a link to this page.
 
@@ -171,7 +188,7 @@ A cassette plays from its first song to its last, then moves on to the next cass
 | **← →** | On the Player: previous and next song. On the rack: browse albums |
 | **↑ ↓** | On the Player: volume up and down |
 | **Letters and numbers** | On the rack: jump to the first artist starting with it. Press again for the next one. Type quickly to spell more, like **meg** for Megadeth |
-| **Esc** | Close the J-card, About or Folders |
+| **Esc** | Close the J-card, lyrics, About or Folders |
 
 ### Where things are saved
 
@@ -180,6 +197,8 @@ A cassette plays from its first song to its last, then moves on to the next cass
 | **Settings:** folders, window size, volume, colour, backgrounds, wallpaper, last song and position | `~/.config/cosmic-cassette-deck/state` |
 | **Covers:** downloaded and picked | `~/.cache/cosmic-cassette-deck/covers` |
 | **Covers in the Flatpak** | `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/covers` |
+| **Lyrics from LRCLIB** | `~/.cache/cosmic-cassette-deck/lyrics` |
+| **Lyrics in the Flatpak** | `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/lyrics` |
 
 ## Build from source
 
@@ -245,7 +264,7 @@ Then see [Using it](#using-it) to add your music.
 
 ## How it's built
 
-**Made with:** Rust and libcosmic (its iced fork, with the wgpu renderer on Wayland). rodio and symphonia play the audio, lofty reads tags and cover art, ab_glyph draws the label text, mpris-server handles media keys, rfd opens file pickers, and ureq, image and serde_json download covers.
+**Made with:** Rust and libcosmic (its iced fork, with the wgpu renderer on Wayland). rodio and symphonia play the audio, lofty reads tags and cover art, ab_glyph draws the label text, mpris-server handles media keys, rfd opens file pickers, and ureq, image and serde_json download covers and lyrics.
 
 **Reels:** the spin speeds come from how much tape is on each spool. The highlight on each hub stays still while the reel turns, the way light does on a real deck.
 
@@ -255,7 +274,7 @@ Then see [Using it](#using-it) to add your music.
 
 **Deck art:** in `assets/`. The colours are recoloured versions of the same deck photo.
 
-**Font:** the J-card is typed in [Courier Prime](https://github.com/quoteunquoteapps/CourierPrime) (`assets/CourierPrime-*.ttf`), under the SIL Open Font License 1.1. The license is in `assets/CourierPrime-OFL.txt`.
+**Font:** the J-card and the lyric sheet are typed in [Courier Prime](https://github.com/quoteunquoteapps/CourierPrime) (`assets/CourierPrime-*.ttf`), under the SIL Open Font License 1.1. The license is in `assets/CourierPrime-OFL.txt`.
 
 **Sounds:** short FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, `end_clack`, `case_open`, `tape_lift`, `tape_slide` and `eject_pop`.
 
