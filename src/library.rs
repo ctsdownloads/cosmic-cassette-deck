@@ -53,6 +53,9 @@ const FOLDER_COVER_EXTS: &[&str] = &["jpg", "jpeg", "png"];
 
 const AUDIO_EXTS: &[&str] = &["mp3", "flac", "m4a", "wav"];
 
+/// Songs read so far by the scan in progress, shown while the rack fills.
+pub static SCANNED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 /// Recursively scan every folder in `dirs` for audio files and group them
 /// into albums (an album split across folders is still one cassette).
 /// Returns (albums, count of matching files that could not be parsed).
@@ -71,6 +74,7 @@ pub fn scan(dirs: Vec<PathBuf>) -> (Vec<Album>, usize) {
     let mut spellings: BTreeMap<(String, String), Vec<((String, String), usize)>> =
         BTreeMap::new();
     let mut skipped: usize = 0;
+    SCANNED.store(0, std::sync::atomic::Ordering::Relaxed);
 
     for entry in dirs
         .iter()
@@ -83,6 +87,7 @@ pub fn scan(dirs: Vec<PathBuf>) -> (Vec<Album>, usize) {
             })
         })
     {
+        SCANNED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let Some((shown, track, art_bytes, info)) = read_track(entry.path()) else {
             skipped += 1;
             continue;

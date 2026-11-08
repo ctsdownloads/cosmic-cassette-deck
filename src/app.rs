@@ -876,7 +876,8 @@ impl Application for App {
         // the frame it first appears in. With music playing the reels redraw
         // the window anyway; on a still screen nothing would, so the picture
         // stayed blank. Redraw a few times right after anything changes.
-        let settle = if self.redraw_until.is_some_and(|t| Instant::now() < t) {
+        // While scanning, keep redrawing so the song count moves.
+        let settle = if self.scanning || self.redraw_until.is_some_and(|t| Instant::now() < t) {
             cosmic::iced::time::every(SETTLE_TICK).map(|_| Message::Redraw)
         } else {
             Subscription::none()
@@ -1614,7 +1615,7 @@ impl App {
             );
         }
         let status = if self.scanning {
-            "Scanning your tapes…".to_string()
+            scan_status()
         } else {
             format!("{} tapes on the rack", self.library.len())
         };
@@ -1848,7 +1849,7 @@ let nav = self.deck_nav();
         .align_y(Alignment::Center);
 
         if self.scanning {
-            let body = container(text::body("Scanning your tapes…")).center(Length::Fill);
+            let body = container(text::body(scan_status())).center(Length::Fill);
             return widget::column::with_capacity(2)
                 .spacing(12)
                 .padding(20)
@@ -2147,6 +2148,14 @@ fn gradient_bg(top: [u8; 3], bot: [u8; 3]) -> cosmic::widget::image::Handle {
         buf.push(255);
     }
     cosmic::widget::image::Handle::from_rgba(1, h, buf)
+}
+
+/// "Scanning your tapes…" with how many songs have been read so far.
+fn scan_status() -> String {
+    match library::SCANNED.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => "Scanning your tapes…".to_string(),
+        n => format!("Scanning your tapes… {n} songs read"),
+    }
 }
 
 /// Each song's length in seconds, in play order.
