@@ -1946,12 +1946,12 @@ let nav = self.deck_nav();
                     .into(),
                 button::standard("J-card").on_press(Message::ShowJCard(self.browse_index)).into(),
                 button::standard("Next ›").on_press(Message::BrowseStep(1)).into(),
-            ]))
-            .push(
-                button::text("Change cover…").on_press_maybe(
-                    (!self.library.is_empty()).then_some(Message::PickCover(self.browse_index)),
-                ),
-            );
+                button::standard("Change cover")
+                    .on_press_maybe(
+                        (!self.library.is_empty()).then_some(Message::PickCover(self.browse_index)),
+                    )
+                    .into(),
+            ]));
 
         // Canvas takes the flexible space; controls sit in a fixed footer that
         // is always visible (the earlier bug: Fill canvas pushed nav off-screen).
