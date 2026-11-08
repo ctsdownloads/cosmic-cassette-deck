@@ -157,6 +157,12 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
                 .cmp(&b.disc)
                 .then(a.number.cmp(&b.number))
                 .then_with(|| a.title.cmp(&b.title))
+                .then_with(|| a.path.cmp(&b.path))
+        });
+        // Two copies of the same song (same disc, track number and title)
+        // play once: the first by file path is kept.
+        album.tracks.dedup_by(|b, a| {
+            a.disc == b.disc && a.number == b.number && match_key(&a.title) == match_key(&b.title)
         });
     }
     (out, skipped)
