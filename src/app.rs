@@ -129,6 +129,10 @@ pub enum Message {
     ShowJCard(usize),
     FlipJCard,
     Redraw,
+    /// Left/Right arrow: browse the rack, or previous/next song on the Player.
+    ArrowKey(i32),
+    /// Up/Down arrow on the Player: volume up or down.
+    VolumeStep(i32),
     /// Esc: close the About card or the J-card.
     Escape,
     CloseJCard,
@@ -838,8 +842,10 @@ impl Application for App {
             if let cosmic::iced::Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) = event {
                 let free = status == cosmic::iced::event::Status::Ignored && modifiers.is_empty();
                 match key.as_ref() {
-                    Key::Named(Named::ArrowLeft) => Some(Message::BrowseStep(-1)),
-                    Key::Named(Named::ArrowRight) => Some(Message::BrowseStep(1)),
+                    Key::Named(Named::ArrowLeft) => Some(Message::ArrowKey(-1)),
+                    Key::Named(Named::ArrowRight) => Some(Message::ArrowKey(1)),
+                    Key::Named(Named::ArrowUp) if free => Some(Message::VolumeStep(1)),
+                    Key::Named(Named::ArrowDown) if free => Some(Message::VolumeStep(-1)),
                     Key::Named(Named::Escape) => Some(Message::Escape),
                     Key::Character(c) if free && c == " " => Some(Message::TogglePlay),
                     Key::Character(c) if free => {
@@ -1197,6 +1203,21 @@ impl Application for App {
                 if let Screen::JCard { album, side } = self.screen {
                     self.screen = Screen::JCard { album, side: 1 - side };
                     self.refresh_jcard();
+                }
+            }
+            Message::ArrowKey(d) => {
+                return match self.screen {
+                    Screen::Rack => self.update(Message::BrowseStep(d)),
+                    Screen::Player if self.current.is_some() => {
+                        self.update(if d > 0 { Message::Next } else { Message::Prev })
+                    }
+                    _ => Task::none(),
+                };
+            }
+            Message::VolumeStep(d) => {
+                if self.screen == Screen::Player {
+                    let v = ((self.volume * 20.0).round() + d as f32) / 20.0;
+                    return self.update(Message::SetVolume(v.clamp(0.0, 1.0)));
                 }
             }
             Message::Escape => {
