@@ -281,11 +281,18 @@ fn read_track(
                 .filter(|_| has_title)
                 .map(|c| c.into_owned())
                 .unwrap_or(fn_title.clone());
-            let artist = tag
-                .artist()
-                .filter(|_| has_artist)
-                .map(|c| c.into_owned())
-                .unwrap_or(fn_artist);
+            // Album Artist, when set, names the whole album: songs credited
+            // "Artist feat. Someone" and compilations stay on one cassette.
+            let album_artist = tag
+                .get_string(&ItemKey::AlbumArtist)
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty() && has_album);
+            let artist = album_artist.unwrap_or_else(|| {
+                tag.artist()
+                    .filter(|_| has_artist)
+                    .map(|c| c.into_owned())
+                    .unwrap_or(fn_artist)
+            });
             // No album tag -> single: album is the track title.
             let album = tag
                 .album()
