@@ -1623,16 +1623,13 @@ impl App {
             text::title2("Music folders").into(),
             list.into(),
             text::caption(status).into(),
-            widget::row::with_children(vec![
+            wrap_row(vec![
                 button::suggested("Add folder…").on_press(Message::OpenFolder).into(),
                 button::standard("Rescan")
                     .on_press_maybe((!self.scanning && !self.music_dirs.is_empty()).then_some(Message::Rescan))
                     .into(),
                 button::standard("Close").on_press(Message::ToggleFolders).into(),
-            ])
-            .spacing(12)
-            .align_y(Alignment::Center)
-            .into(),
+            ]),
         ])
         .spacing(16)
         .align_x(Alignment::Center)
@@ -1645,13 +1642,10 @@ impl App {
             text::title2("Cassette Deck").into(),
             text::body(format!("Version {}", env!("CARGO_PKG_VERSION"))).into(),
             text::caption(REPO_URL).into(),
-            widget::row::with_children(vec![
+            wrap_row(vec![
                 button::suggested("Open on GitHub").on_press(Message::OpenRepo).into(),
                 button::standard("Close").on_press(Message::ToggleAbout).into(),
-            ])
-            .spacing(12)
-            .align_y(Alignment::Center)
-            .into(),
+            ]),
         ])
         .spacing(16)
         .align_x(Alignment::Center);
@@ -1738,7 +1732,7 @@ impl App {
                     .into(),
             );
         }
-        widget::row::with_children(nav_buttons).spacing(12).into()
+        wrap_row(nav_buttons)
     }
 
     fn player_view(&self) -> Element<'_, Message> {
@@ -1835,18 +1829,15 @@ let nav = self.deck_nav();
     }
 
     fn rack_view(&self) -> Element<'_, Message> {
-        let header = widget::row::with_children(vec![
+        let header = wrap_row(vec![
             text::title3("Cassette Rack").into(),
-            widget::Space::new().width(Length::Fill).into(),
             button::standard("Backdrop ⟳").on_press(Message::CycleBackground).into(),
             button::standard("＋ Image").on_press(Message::PickBackground).into(),
             button::standard("🗑 Remove").on_press(Message::RemoveBackground).into(),
             button::standard("Player").on_press(Message::ShowPlayer).into(),
             button::standard("About").on_press(Message::ToggleAbout).into(),
             button::suggested("Folders").on_press(Message::ToggleFolders).into(),
-        ])
-        .spacing(12)
-        .align_y(Alignment::Center);
+        ]);
 
         if self.scanning {
             let body = container(text::body(scan_status())).center(Length::Fill);
@@ -1945,20 +1936,17 @@ let nav = self.deck_nav();
         }
         let controls = controls
             .push(text::caption(counter))
-            .push(
-                widget::row::with_capacity(3)
-                    .spacing(16)
-                    .align_y(Alignment::Center)
-                    .push(button::standard("‹ Prev").on_press(Message::BrowseStep(-1)))
-                    .push(
-                        button::suggested("▶ Play").on_press(Message::OpenCase {
-                            album: self.browse_index,
-                            track: 0,
-                        }),
-                    )
-                    .push(button::standard("J-card").on_press(Message::ShowJCard(self.browse_index)))
-                    .push(button::standard("Next ›").on_press(Message::BrowseStep(1))),
-            )
+            .push(wrap_row(vec![
+                button::standard("‹ Prev").on_press(Message::BrowseStep(-1)).into(),
+                button::suggested("▶ Play")
+                    .on_press(Message::OpenCase {
+                        album: self.browse_index,
+                        track: 0,
+                    })
+                    .into(),
+                button::standard("J-card").on_press(Message::ShowJCard(self.browse_index)).into(),
+                button::standard("Next ›").on_press(Message::BrowseStep(1)).into(),
+            ]))
             .push(
                 button::text("Change cover…").on_press_maybe(
                     (!self.library.is_empty()).then_some(Message::PickCover(self.browse_index)),
@@ -2003,19 +1991,16 @@ let nav = self.deck_nav();
         };
 
         // Consistent top nav — same controls available as every other screen.
-        let header = widget::row::with_children(vec![
+        let header = wrap_row(vec![
             container(text::title2("Music Rack").class(cosmic::iced::Color::WHITE))
                 .padding(8)
                 .style(dark)
                 .into(),
-            widget::Space::new().width(Length::Fill).into(),
             button::suggested("Player").on_press(Message::ShowPlayer).into(),
             button::suggested("Music Rack").on_press(Message::ShowRack).into(),
             button::suggested("About").on_press(Message::ToggleAbout).into(),
             button::suggested("Folders").on_press(Message::ToggleFolders).into(),
-        ])
-        .spacing(12)
-        .align_y(Alignment::Center);
+        ]);
 
         let card: Element<Message> = match &self.jcard_img {
             Some(h) => widget::image(h.clone())
@@ -2059,15 +2044,13 @@ let nav = self.deck_nav();
             button::suggested("▶ Play").on_press(Message::OpenCase { album: idx, track: 0 })
         };
         let has_side_b = crate::jcard::side_b_start(&track_secs(album)) < album.tracks.len();
-        let mut buttons = widget::row::with_capacity(3)
-            .spacing(12)
-            .align_y(Alignment::Center)
-            .push(play_btn);
+        let mut buttons: Vec<Element<Message>> = vec![play_btn.into()];
         if has_side_b {
             let flip = if side == 0 { "Side B ›" } else { "‹ Side A" };
-            buttons = buttons.push(button::suggested(flip).on_press(Message::FlipJCard));
+            buttons.push(button::suggested(flip).on_press(Message::FlipJCard).into());
         }
-        let buttons = buttons.push(button::suggested("← Back to rack").on_press(Message::CloseJCard));
+        buttons.push(button::suggested("← Back to rack").on_press(Message::CloseJCard).into());
+        let buttons = wrap_row(buttons);
 
         let body = widget::column::with_capacity(3)
             .spacing(14)
@@ -2148,6 +2131,17 @@ fn gradient_bg(top: [u8; 3], bot: [u8; 3]) -> cosmic::widget::image::Handle {
         buf.push(255);
     }
     cosmic::widget::image::Handle::from_rgba(1, h, buf)
+}
+
+/// A row of buttons that wraps onto more lines when the window is too
+/// narrow, so no button is ever cut off.
+fn wrap_row(children: Vec<Element<'_, Message>>) -> Element<'_, Message> {
+    widget::flex_row(children)
+        .spacing(10)
+        .width(Length::Fill)
+        .justify_content(cosmic::widget::JustifyContent::Center)
+        .align_items(Alignment::Center)
+        .into()
 }
 
 /// "Scanning your tapes…" with how many songs have been read so far.
