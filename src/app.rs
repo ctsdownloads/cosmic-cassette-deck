@@ -115,7 +115,6 @@ pub enum Message {
     ShowRack,
     ShowPlayer,
     LabelClicked, // clicking the deck label opens the current album art
-    AlbumSelected(usize),
     CloseReveal,
     OpenCase { album: usize, track: usize }, // click the reveal case: open it, then load
     TogglePlay,
@@ -805,7 +804,6 @@ impl Application for App {
                     | Message::ShowRack
                     | Message::ShowPlayer
                     | Message::LabelClicked
-                    | Message::AlbumSelected(_)
                     | Message::CloseReveal
                     | Message::OpenCase { .. }
                     | Message::CycleSkin
@@ -1050,7 +1048,6 @@ impl Application for App {
                     }
                 }
             }
-            Message::AlbumSelected(i) => self.screen = Screen::Reveal(i),
             Message::CloseReveal => self.screen = Screen::Rack,
 
             Message::OpenCase { album, track } => {

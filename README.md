@@ -2,7 +2,7 @@
 
 A photoreal 1980s portable cassette player for your local music library. A native COSMIC desktop app built on libcosmic.
 
-The deck is a photograph, and the app draws the living parts on top every frame: spinning reels with real spool physics, a rasterized track label, and transport keys that sink into the chassis. Click a cassette case and it swings open, the tape lifts out, and it slides down into the walkman's window. Press Stop twice and it slides back out. Recolor the deck and swap the room behind it.
+The deck is a photograph, and the app draws the living parts on top every frame: spinning reels with real spool physics, a rasterized track label, and transport keys that sink into the chassis. Click a cassette and its case swings open, the tape lifts out, and it slides down into the walkman's window. Press Stop twice and it slides back out. Recolor the deck and swap the room behind it.
 
 <p align="center">
   <img src="docs/player-denim.png" alt="The photoreal cassette deck playing a track" width="760">
@@ -11,7 +11,7 @@ The deck is a photograph, and the app draws the living parts on top every frame:
 ## Features
 
 - Photoreal deck with animated reels driven by physically derived spool speeds. The source reel empties and speeds up while the take-up slows (an area-conserving pack model), and a fixed specular highlight is drawn over each spinning hub the way light stays put on a real deck.
-- Case-open and insert animation. On the album screen, click the cassette case: it hinges open, the tape lifts out, the room fades to the deck, and the tape slides into the cassette window with its label already printed. Playback begins as it seats.
+- Case-open and insert animation. On the Cassette Rack, click the cassette at the front (or Play): it hinges open, the tape lifts out, the room fades to the deck, and the tape slides into the cassette window with its label already printed. Playback begins as it seats.
 - Eject and tape swap. Press Stop while stopped and the tape slides up out of the window, then the rack fades in. When an album ends and the next one starts, the old tape slides out and the next album's tape slides in.
 - Keys that move like a real deck's. Pressed keys sink into the chassis and spring back; Play stays latched down while the tape plays and pops up on pause or stop. The FUNCT switch slides along its slot. Each colour skin shows its own casing behind them.
 - Dynamic label. Song and album come from your file tags, rasterized with ab_glyph and rotated (working around iced's lack of rotated canvas text), regenerated on track change rather than per frame.
@@ -31,7 +31,7 @@ The Cassette Rack fans through your library, one cassette per album, with cover 
 
 ![Cassette Rack](docs/cassette-rack.png)
 
-Click an album to bring its case forward, its cover printed on the J-card. Click the case, or Play, to open it.
+Click the cassette at the front, or Play, to put it in the deck and start it.
 
 ![Album screen](docs/album.png)
 
