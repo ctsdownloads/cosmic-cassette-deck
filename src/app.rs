@@ -117,6 +117,8 @@ pub enum Message {
     FolderChosen(Option<PathBuf>),
     /// Show or hide the Folders card (the music folders and Rescan).
     ToggleFolders,
+    /// The window was resized: remember its size for next launch.
+    WindowResized(cosmic::iced::Size),
     RemoveFolder(usize),
     /// Read the music folders again, for songs added or removed since.
     Rescan,
@@ -167,6 +169,8 @@ pub struct App {
     show_about: bool,
     /// Folders card visible (a full-view panel, like About).
     show_folders: bool,
+    /// The window's size, saved so the next launch opens at it.
+    window_size: Option<cosmic::iced::Size>,
 
     /// Currently loaded (album_idx, track_idx), if a tape is in the deck.
     current: Option<(usize, usize)>,
@@ -612,6 +616,9 @@ impl App {
             out.push_str(&format!("music_dirs={}\n", dirs.join("\t")));
         }
         out.push_str(&format!("volume={}\n", self.volume));
+        if let Some(size) = self.window_size {
+            out.push_str(&format!("window={}x{}\n", size.width.round(), size.height.round()));
+        }
         out.push_str(&format!("skin={}\n", self.skins[self.skin_idx].spec.id));
         out.push_str(&format!("bg_idx={}\n", self.bg_idx));
         out.push_str(&format!("backdrop={}\n", self.show_backdrop as u8));
@@ -731,6 +738,7 @@ impl Application for App {
             scanning: false,
             show_about: false,
             show_folders: false,
+            window_size: None,
             current: None,
             audio_tx,
             status,
@@ -824,6 +832,9 @@ impl Application for App {
         // On the rack, letters and digits jump to artists (S included).
         let keys = cosmic::iced::event::listen_with(|event, status, _id| {
             use cosmic::iced::keyboard::{key::Named, Event as KeyEvent, Key};
+            if let cosmic::iced::Event::Window(cosmic::iced::window::Event::Resized(size)) = event {
+                return Some(Message::WindowResized(size));
+            }
             if let cosmic::iced::Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) = event {
                 let free = status == cosmic::iced::event::Status::Ignored && modifiers.is_empty();
                 match key.as_ref() {
@@ -1060,6 +1071,12 @@ impl Application for App {
                 }
             }
             Message::ToggleFolders => self.show_folders = !self.show_folders,
+            Message::WindowResized(size) => {
+                if self.window_size != Some(size) {
+                    self.window_size = Some(size);
+                    self.save_state();
+                }
+            }
             Message::Rescan => {
                 self.scanning = true;
                 return scan_task(self.music_dirs.clone());
@@ -2137,7 +2154,7 @@ fn state_path() -> Option<PathBuf> {
     Some(config_dir()?.join("state"))
 }
 
-fn read_state() -> HashMap<String, String> {
+pub(crate) fn read_state() -> HashMap<String, String> {
     let Some(path) = state_path() else {
         return HashMap::new();
     };
