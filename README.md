@@ -1,100 +1,89 @@
 # cosmic-cassette-deck
 
-A photoreal 1980s portable cassette player for your local music library. A native COSMIC desktop app built on libcosmic.
+A 1980s portable cassette player for your own music, built as a native app for the COSMIC desktop.
 
-The deck is a photograph, and the app draws the living parts on top every frame: spinning reels with real spool physics, a rasterized track label, and transport keys that sink into the chassis. Click a cassette and its case swings open, the tape lifts out, and it slides down into the walkman's window. Press Stop twice and it slides back out. Recolor the deck and swap the room behind it.
+The deck is a real photograph. The reels spin, the keys press down, and every album is a cassette you pull off a shelf and drop into the deck.
 
 <p align="center">
-  <img src="docs/player-denim.png" alt="The photoreal cassette deck playing a track" width="760">
+  <img src="docs/player-denim.png" alt="The cassette deck playing a track" width="760">
 </p>
 
-## Features
+## What it does
 
-- Photoreal deck with animated reels driven by physically derived spool speeds. The source reel empties and speeds up while the take-up slows (an area-conserving pack model), and a fixed specular highlight is drawn over each spinning hub the way light stays put on a real deck.
-- Case-open and insert animation. On the Cassette Rack, click the cassette at the front (or Play): it hinges open, the tape lifts out, the room fades to the deck, and the tape slides into the cassette window with its label already printed. Playback begins as it seats.
-- Eject and tape swap. Press Stop while stopped and the tape slides up out of the window, then the rack fades in. When an album ends and the next one starts, the old tape slides out and the next album's tape slides in.
-- Keys that move like a real deck's. Pressed keys sink into the chassis and spring back; Play stays latched down while the tape plays and pops up on pause or stop. The FUNCT switch slides along its slot. Each colour skin shows its own casing behind them.
-- Dynamic label. Song and album come from your file tags, rasterized with ab_glyph and rotated (working around iced's lack of rotated canvas text), regenerated on track change rather than per frame.
-- J-card. Each album has the printed insert from its case: its songs typed in Courier Prime on aged card, split between SIDE A and SIDE B by running time, with dot leaders and lengths from your files. Open it from the rack, or click the tape label on the Player to see the tape in the deck, its playing song ticked in pencil.
-- Colour skins: Denim Belt, Red, Blue, Black, and White, cycled from the Player.
-- Swappable room backgrounds. Cycle the built-ins, add your own image, or remove ones you added. The choice applies to the rack, the J-card, and the insert animation.
-- Album-cover wallpaper behind the Player deck. Toggle the Wallpaper button to fill the space around the deck with the playing album's cover art; off by default, and the choice is remembered.
-- Cassette Rack: a fan-through-your-albums browser with cover art (from tags via lofty, or scraped), navigable with the arrow keys, or type a letter to jump to the artists that start with it. Albums sort by artist ignoring case, and the rack follows the playing tape unless you have browsed to another album. The cassette in the deck is marked "♪ In the deck".
-- Real player: local files, play, pause, stop, fast-forward and rewind (hold to wind), seek, volume, auto-advance across albums, and session resume.
-- Mechanical sound. The transport keys click, the case snaps open, the tape rattles as it lifts out and slides into the deck, then seats with a clunk; eject pops it back out. Holding fast-forward or rewind whirrs for as long as it is held, and a tape reaching its end clunks to a stop before the next one loads. The cues are short FLAC clips embedded in the binary; if you build from source you can swap them for your own (see Assets).
-- About panel showing the version and a link to the project, reachable from the header on the Player, the Cassette Rack, and the J-card.
-- MPRIS support for media keys, playerctl, and desktop panel controls.
-- Formats: MP3, FLAC, M4A/AAC, and WAV (rodio and symphonia).
+- **Spinning reels:** they turn like a real tape. One reel empties and speeds up as the other fills and slows.
+- **Loading a tape:** click a cassette on the rack and its case swings open, the tape lifts out and slides into the deck. Music starts as it clicks into place.
+- **Eject and swap:** press Stop twice and the tape pops back out. When an album ends, the old tape slides out and the next one slides in.
+- **Real keys:** they sink when pressed and spring back. Play stays down while the tape plays and pops up on pause or stop.
+- **Printed label:** the tape's label shows the song and album from your music files.
+- **J-card:** the folded insert from the cassette case, with the album's songs typed out on old paper and split into Side A and Side B.
+- **Cassette Rack:** flip through your albums like a shelf of tapes, with their covers, sorted by artist. It follows the tape that's playing and marks it "♪ In the deck".
+- **Five colours:** Denim Belt, Red, Blue, Black and White.
+- **Your own backgrounds:** swap the room behind the rack, or add a picture of your own.
+- **Album wallpaper:** optionally fill the space around the deck with the playing album's cover.
+- **Tape sounds:** the keys click, the case snaps open, the tape rattles in and clunks into place, fast-forward whirrs, and a tape clunks to a stop at its end.
+- **Media keys:** your keyboard's media keys and your desktop's player controls work.
+- **Picks up where you left off:** the last song and position are remembered.
+- **Formats:** MP3, FLAC, M4A/AAC and WAV.
 
 ## Screenshots
 
-The Cassette Rack fans through your library, one cassette per album, with cover art from your tags (or scraped when a tag has none). Browse with the arrow keys or Prev and Next; Play loads the album at the front.
+**Cassette Rack:** one cassette per album, with its cover. Browse with the arrow keys or Prev and Next. Click the cassette at the front, or Play, to put it in the deck.
 
 ![Cassette Rack](docs/cassette-rack.png)
 
-Click the cassette at the front, or Play, to put it in the deck and start it.
-
-Click **J-card** to read the insert from the case: the album's songs, typed on aged card, split between SIDE A and SIDE B by running time, with each song's length. **Side B ›** turns it over. Clicking the tape label on the Player opens the J-card of the tape in the deck, with a pencil tick beside the song that's playing.
+**J-card:** click **J-card** to read the album's songs. **Side B ›** turns it over. Click the tape label on the Player to see the J-card of the tape that's playing, with a pencil tick beside the current song.
 
 ![J-card](docs/jcard.png)
 
-The case hinges open, the tape lifts out, and it slides into the deck's window before playback begins.
+**Loading a tape:** the case opens, the tape lifts out and slides into the deck.
 
 ![Insert animation](docs/insert.png)
 
-Five colour skins cycle from the Player with the Walkman button: the same photographed deck, recolored. The player at the top of this page is the Denim Belt skin; here is Red, playing the same track.
+**Colours:** the Walkman button on the Player cycles through the five colours. The deck at the top of this page is Denim Belt. This one is Red.
 
 ![Red skin](docs/player-red.png)
 
 ## Install
 
-There are two ways to get this app, and this README covers both. They are not the same job:
+Download the package for your system from the [Releases page](https://github.com/ctsdownloads/cosmic-cassette-deck/releases), then install it from the folder you saved it in. The app shows up in your app menu as **Cassette Deck**.
 
-| | **Install** (this section) | **[Build from source](#building-from-source-for-hacking-on-it)** |
-|---|---|---|
-| You end up with | The app **installed** - system-wide, in your app menu as **Cassette Deck** | A **binary inside a checkout**, at `target/release/`. Nothing installed, nothing in your app menu |
-| Effort | One command | Clone, install a Rust toolchain and system libraries, sit through a long first compile |
-| Does it compile? | Ubuntu / Fedora / Flatpak: no, the binary is prebuilt. **NixOS: yes** - Nix compiles it for you, then installs it | Yes. You run `cargo` yourself |
-| Dependencies | Pulled in for you | You install them yourself |
-| Updating | Your package manager, or `nixos-rebuild` | `git pull` and recompile by hand |
-| Removing it | `apt remove` / `dnf remove` / `flatpak uninstall` / drop it from your flake | Delete the checkout |
-| Pick this if | You want to **use** the app | You want to **change the code**, or your distro has no package here |
-
-**Almost everyone wants Install.** Note that on NixOS *both* routes compile the app - so "does it compile" is not the difference. The difference is whether you end up with an installed app or a checkout to work in.
-
-Packages for the latest release are on the [Releases page](https://github.com/ctsdownloads/cosmic-cassette-deck/releases). Download the one for your distro, then install it from the directory you saved it in.
-
-Ubuntu (24.04 and newer):
+**Ubuntu 24.04 and newer:**
 
 ```sh
 sudo apt install ./cosmic-cassette-deck_*_amd64.deb
 ```
 
-Fedora (44 and newer):
+**Fedora 44 and newer:**
 
 ```sh
 sudo dnf install ./cosmic-cassette-deck-*.x86_64.rpm
 ```
 
-Either one pulls in what the app needs at runtime - ALSA, Wayland, libxkbcommon, the Vulkan loader and driver, and the Adwaita icon theme - and adds **Cassette Deck** to your app menu.
+Both packages bring in everything the app needs to run, including the Vulkan driver and the Adwaita icons.
 
-Every prebuilt package here - `.deb`, `.rpm`, and the `.flatpak` below - is **x86_64 only**; they are all built on an x86_64 runner. There is no prebuilt ARM package. The Nix flake declares `aarch64-linux` and a source build has nothing x86-specific in it, so either should work on ARM by compiling on your machine - but neither is tested.
+**NixOS:** see [NIXOS_INSTALL.md](NIXOS_INSTALL.md). You can try the app without installing it, install it with one command, or add it to your system flake. Nix builds the app for you, so you never run cargo.
 
-### Flatpak - any other distro, and the only sane route on atomic ones
+**Removing it:** `sudo apt remove cosmic-cassette-deck`, `sudo dnf remove cosmic-cassette-deck`, or `flatpak uninstall io.github.ctsdownloads.CosmicCassetteDeck`. On NixOS, remove it from your profile or flake.
 
-Every release also carries a single-file `.flatpak` bundle. Download `cosmic-cassette-deck.flatpak` from the [Releases page](https://github.com/ctsdownloads/cosmic-cassette-deck/releases), then:
+**Want to change the code?** See [Build from source](#build-from-source).
+
+### Flatpak
+
+For any other distro, use the Flatpak: Arch, Debian, openSUSE, Mint, Pop!_OS and the rest.
+
+**Atomic distros:** on Bluefin, Aurora, Bazzite, Silverblue and Kinoite, the Flatpak is the way to go. It installs without touching the base system and needs no reboot. Layering the `.rpm` with `rpm-ostree` isn't recommended there, and some versions block it.
+
+**With an app store:** download `cosmic-cassette-deck.flatpak` from the [Releases page](https://github.com/ctsdownloads/cosmic-cassette-deck/releases) and double-click it. If you have Bazaar or another Flatpak app store, it opens and installs the app.
+
+**From a terminal:** after downloading it, run:
 
 ```sh
 flatpak install --user ./cosmic-cassette-deck.flatpak
 ```
 
-Use this on Arch, Debian, openSUSE, Mint, Pop!_OS, or anything else with no native package above.
+**Updates:** the app isn't on Flathub, so it won't update by itself. To update, install the newer `.flatpak` over the old one. You don't need to remove the old one first.
 
-**On atomic distros - Bluefin, Aurora, Bazzite, Silverblue, Kinoite - this is the route you want.** Layering the `.rpm` with `rpm-ostree` is an anti-pattern there, needs a reboot, and is disabled outright on some variants. The Flatpak is sandboxed, installs without touching the base image, and updates like any other app.
-
-The bundle is sandboxed and ships its own icon theme, so the window controls render everywhere with no extra packages. It is not on Flathub, so it will not auto-update - grab the newer bundle from Releases and install it over the top.
-
-To install the newest release, or to update to it later, run:
+**Install or update with one command:** this checks the version you have, and only downloads when there's a newer release. It works in bash, zsh and fish.
 
 ```sh
 sh -c '
@@ -111,119 +100,134 @@ fi
 '
 ```
 
-It checks your installed version first. If you already have the latest release it says so, otherwise it installs or updates. It works the same in bash, zsh and fish.
+### Good to know
 
-**NixOS** - the `.deb` and `.rpm` are no use to you. [NIXOS_INSTALL.md](NIXOS_INSTALL.md) is your install route, and it covers three: `nix run` to try the app without installing it, `nix profile install` to install it with a single command, or adding it to your system flake so it is declarative and survives a rebuild. Nix compiles the app in all three cases; you never run cargo and you keep no checkout.
+**x86_64 only:** the `.deb`, `.rpm` and `.flatpak` are built for x86_64. There's no ARM package. Building from source, or the Nix flake, should work on ARM, but it hasn't been tested.
 
-### Running outside COSMIC
+**Other desktops:** it runs on any Wayland desktop, including GNOME and KDE Plasma. Away from COSMIC, the window's minimize, maximize and close buttons use the Adwaita icons, so they don't show up blank. On KDE Plasma they look a little different from your other windows, but they work. The packages and the Flatpak take care of the icons. If you build from source, install the Adwaita icon theme yourself.
 
-It is a native COSMIC app, but it runs on any Wayland desktop - GNOME, KDE Plasma, and the rest. On those, it draws its titlebar's minimize, maximize, and close buttons from the Adwaita icon theme, because the COSMIC icon theme isn't installed there and the buttons would otherwise render blank. The packages depend on Adwaita, so an installed package just works, and the Flatpak carries its own icon theme. If you build from source, install Adwaita yourself; it is in the dependency lists below.
-
-On KDE Plasma this means those three buttons are drawn Adwaita-style rather than Breeze - slightly out of place next to the rest of your desktop, but working. Adwaita is used everywhere off COSMIC because it is the one icon theme guaranteed to be installable on every distro and to carry the icon names libcosmic asks for; mapping each desktop to its own theme would trade a cosmetic mismatch for buttons that vanish again.
-
-The app always uses its dark look, so it stays readable whatever theme your desktop uses.
+**Dark look:** the app always uses its dark look, so it stays readable whatever theme your desktop uses.
 
 ## Using it
 
 ### Add your music
 
-Click **Folders**, then **Add folder…**, and point it at your music directory. The app scans it recursively, reads the tags, groups the files into album cassettes, and fills the rack. Click a cassette to play it. While a big library scans, the rack counts the songs it has read so far.
+Click **Folders**, then **Add folder…**, and pick your music folder. The app reads everything inside it, makes a cassette for each album, and fills the rack. While a big library loads, the rack counts the songs as it goes.
 
-Files are grouped into albums by their Album Artist (or Artist, when there is no Album Artist) and Album tags (read with lofty), so each album is one cassette no matter how many songs it holds, and its tracks play in track-number order (disc by disc on multi-disc albums). If the same song is in your folder twice, the cassette plays it once. Tags that differ only in capital letters, extra spaces, or curly versus straight quotes still count as the same album, so one song tagged "...And Justice For All" stays on the same cassette as the rest; the cassette shows the spelling most of its songs use. Files with no tags fall back to their `Artist - Title` filename, and each becomes its own single. Formats: MP3, FLAC, M4A/AAC, and WAV.
+- **More folders:** add as many as you like. An album spread across two folders is still one cassette.
+- **Remove:** takes a folder off the rack.
+- **Rescan:** picks up songs you've added or deleted since. No restart needed, and the tape in the deck keeps playing.
+- **Remembered:** your folders are saved, so this is a one-time step.
 
-Your folders are remembered, so this is a one-time step. Add as many folders as you like; an album spread across two folders is still one cassette. **Remove** takes a folder off the rack, and **Rescan** picks up songs you added or deleted since, without restarting. The tape in the deck keeps playing through a rescan.
+### How albums are put together
+
+- **One cassette per album:** songs are grouped by their Album Artist and Album tags. With no Album Artist tag, the Artist tag is used.
+- **Song order:** songs play in track number order. Multi-disc albums play disc 1, then disc 2.
+- **Duplicates:** a song that's in your folders twice plays once.
+- **Small tag differences:** capital letters, extra spaces, and curly or straight quotes don't split an album. The cassette shows the spelling most of its songs use.
+- **No tags:** the file name is used, read as `Artist - Title`, and each song becomes its own single.
 
 ### Album covers
 
-Each cassette shows its album's cover. The app uses the first one it finds:
+Each cassette uses the first cover it finds:
 
-1. A picture stored in the song files' tags.
-2. An image in the album's folder named `cover`, `folder`, `front`, or `album` (`.jpg`, `.jpeg`, or `.png`). It is only used when that folder holds just that one album, so keep one album per folder if you rely on cover image files.
-3. A download from the Cover Art Archive. If your tags carry a MusicBrainz release or release-group ID, that exact release's cover is used; otherwise the album is looked up by artist and album name.
+1. **In the song files:** a picture stored in the tags.
+2. **In the album's folder:** an image named `cover`, `folder`, `front` or `album` (`.jpg`, `.jpeg` or `.png`). It's only used when that folder holds just the one album.
+3. **Downloaded:** from the Cover Art Archive. If your tags have a MusicBrainz release ID, that exact cover is used. Otherwise the album is looked up by artist and name.
 
-Loose songs with no Album tag are never looked up by name, so a single does not end up wearing the wrong album's cover. If a download fails because you are offline, it is tried again the next time the app starts.
+- **Loose songs:** a song with no Album tag is never looked up by name, so it doesn't get the wrong album's cover.
+- **Offline:** a cover that fails to download is tried again the next time the app starts.
+- **Wrong cover?** Bring the album to the front of the rack and click **Change cover** to pick an image (PNG, JPG or WEBP). Your pick wins over everything else and is remembered.
 
-Wrong cover, or none at all? Bring the album to the front of the rack and click **Change cover** to pick an image (PNG, JPG, or WEBP). Your pick wins over everything above and is remembered.
+### The room background
 
-### Change the room background
+On the Cassette Rack:
 
-The room behind the cassettes is swappable. On the Cassette Rack screen:
+- **Backdrop:** cycles through the backgrounds.
+- **Image:** adds your own picture (PNG, JPG or WEBP).
+- **Remove:** removes the one showing, if it's one you added. The built-in ones stay.
 
-- **Backdrop** - cycle through the backgrounds, built-in and added.
-- **Image** - add your own. PNG, JPG, or WEBP.
-- **Remove** - remove the one currently showing, if it is one you added. The built-ins stay.
-
-Your choice applies to the rack, the J-card, and the insert animation, and is remembered between runs.
+Your choice is used on the rack, the J-card and the tape loading animation, and is remembered.
 
 ### On the Player
 
-- **Play** / **Pause**, plus stop, seek, and volume. Hold fast-forward or rewind to wind the tape.
-- **Stop** again while stopped ejects the tape and goes back to the rack.
-- Keyboard: **Space** plays and pauses, **S** stops (press it again to eject), **←** and **→** go to the previous and next song, and **↑** and **↓** turn the volume up and down. On the Cassette Rack, letter and number keys jump to the first artist starting with that letter instead; press it again for the next one. Type several letters quickly to spell more of the name, such as **meg** for Megadeth.
-- **Walkman** cycles the deck through its five colour skins.
-- **Wallpaper: On / Off** fills the space around the deck with the playing album's cover art. Off by default, and remembered. This is separate from the room background above.
-- **Music Rack** goes back to the shelf. **About** shows the version and a link to the project.
-- Click the tape label to open that tape's J-card. **Esc** closes the J-card, About, or Folders.
+- **Play, Pause, Stop:** press Stop again while stopped to eject the tape and go back to the rack.
+- **Fast-forward and rewind:** hold to wind the tape.
+- **FUNCT:** click it so fast-forward and rewind skip songs instead of winding. Click again to go back to winding.
+- **Walkman:** cycles the five colours.
+- **Wallpaper:** fills the space around the deck with the album cover. Off unless you turn it on.
+- **Tape label:** click it to open that tape's J-card.
+- **Music Rack:** back to the shelf.
+- **About:** shows the version and a link to this page.
 
-Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf, and after the last one starts over from the first. To move between songs, click **FUNCT** on the deck so fast-forward and rewind skip to the next or previous song instead of winding the tape; click it again to go back to winding. Your keyboard's media keys and your desktop's player controls also skip songs. The label always shows the song that is playing.
+A cassette plays from its first song to its last, then moves on to the next cassette on the shelf. After the last one it starts over from the first.
 
-### Where your settings live
+### Keyboard
 
-State is saved to `~/.config/cosmic-cassette-deck/state`: music folders, window size, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume. Downloaded covers and the covers you picked are kept in `~/.cache/cosmic-cassette-deck/covers` (for the Flatpak, `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/covers`).
+| Key | What it does |
+|---|---|
+| **Space** | Play and pause |
+| **S** | On the Player: stop. Press again to eject |
+| **← →** | On the Player: previous and next song. On the rack: browse albums |
+| **↑ ↓** | On the Player: volume up and down |
+| **Letters and numbers** | On the rack: jump to the first artist starting with it. Press again for the next one. Type quickly to spell more, like **meg** for Megadeth |
+| **Esc** | Close the J-card, About or Folders |
 
-## Building from source (for hacking on it)
+### Where things are saved
 
-**This does not install the app.** You clone the repo and compile it; the binary lands in `target/release/` inside your checkout. It is not installed system-wide, it will not appear in your app menu, and nothing manages it for you. If you just want to *use* the app, go back to [Install](#install).
+| What | Where |
+|---|---|
+| **Settings:** folders, window size, volume, colour, backgrounds, wallpaper, last song and position | `~/.config/cosmic-cassette-deck/state` |
+| **Covers:** downloaded and picked | `~/.cache/cosmic-cassette-deck/covers` |
+| **Covers in the Flatpak** | `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/covers` |
 
-Use this if you want to change the code, or if your distro has no package above.
+## Build from source
 
-NixOS note: the [NIXOS_INSTALL.md](NIXOS_INSTALL.md) route compiles the app too - Nix just does it for you and installs the result. This section is different: it gives you a checkout to work in.
+**This doesn't install the app.** It builds it inside a copy of this repo, at `target/release/`. It won't show up in your app menu. If you just want to use the app, see [Install](#install).
 
-You need the Rust toolchain plus a few system libraries, then a single `cargo` build. There are two ways to get that environment: a normal distro with rustup, or NixOS using the dev shell this repo ships. Both finish at the same build step.
+Build from source if you want to change the code, or if there's no package for your system.
 
-### 1. Clone the repo
+### 1. Get the code
 
 ```sh
 git clone https://github.com/ctsdownloads/cosmic-cassette-deck.git
 cd cosmic-cassette-deck
 ```
 
-Run every command below from inside this `cosmic-cassette-deck` directory.
+Run everything below from inside the `cosmic-cassette-deck` folder.
 
-### 2. Get the toolchain and libraries
+### 2. Get Rust and the libraries
 
-**On a normal distro** - install Rust with [rustup](https://rustup.rs), then the system libraries for your package manager:
+Install Rust with [rustup](https://rustup.rs), then the libraries for your system.
 
-Ubuntu (24.04 / 26.04):
+**Ubuntu 24.04 and 26.04:**
 
 ```sh
 sudo apt install build-essential pkg-config libasound2-dev libwayland-dev libxkbcommon-dev mesa-vulkan-drivers adwaita-icon-theme
 ```
 
-Fedora (44):
+**Fedora 44:**
 
 ```sh
 sudo dnf install gcc pkg-config alsa-lib-devel wayland-devel libxkbcommon-devel vulkan-loader mesa-vulkan-drivers adwaita-icon-theme
 ```
 
-Arch (rolling):
+**Arch:**
 
 ```sh
 sudo pacman -S base-devel pkg-config alsa-lib wayland libxkbcommon vulkan-icd-loader adwaita-icon-theme
 # plus your GPU's Vulkan driver: vulkan-radeon, vulkan-intel, or nvidia-utils
 ```
 
-Package names vary, but in all cases you need a C toolchain, pkg-config, ALSA, Wayland, libxkbcommon, a Vulkan driver plus loader, and - on any desktop that is not COSMIC - the Adwaita icon theme, for the reason given above. The app runs under Wayland, and wgpu needs a Vulkan-capable GPU. File dialogs use the XDG desktop portal through rfd; COSMIC already ships xdg-desktop-portal-cosmic, other desktops need their own portal backend.
+**Other distros:** you need a C compiler, pkg-config, ALSA, Wayland, libxkbcommon, a Vulkan driver and loader, and the Adwaita icon theme if you're not on COSMIC. The app needs Wayland and a GPU that supports Vulkan. File pickers use your desktop's portal. COSMIC already has one, and other desktops need their own.
 
-**On NixOS** - installing libraries system-wide isn't how NixOS works. Enter the dev shell this repo ships instead. It puts the Rust toolchain on your PATH and wires the build libraries above into the environment - `PKG_CONFIG_PATH` so cargo finds them, `LD_LIBRARY_PATH` so the binary runs - for the life of that shell only. Nothing is written into your system configuration:
+**NixOS:** use the dev shell this repo comes with. It brings in Rust and the libraries for as long as the shell is open, without changing your system.
 
 ```sh
-nix develop        # flakes; or `nix-shell` on classic Nix
+nix develop        # or nix-shell on classic Nix
 ```
 
-Run step 3 from inside it - `cargo build` outside the shell will fail, because none of those libraries are on the system. Leaving the shell (Ctrl-D) takes the toolchain back out again, but the compiled binary under `target/release/` stays put.
-
-(To *install* the app on NixOS rather than compile it, you want [NIXOS_INSTALL.md](NIXOS_INSTALL.md), not this.)
+Build from inside that shell. Outside it, the build fails because the libraries aren't there. Leaving the shell (Ctrl-D) removes them again, but the app you built stays in `target/release/`. To install the app on NixOS instead, see [NIXOS_INSTALL.md](NIXOS_INSTALL.md).
 
 ### 3. Build and run
 
@@ -231,21 +235,33 @@ Run step 3 from inside it - `cargo build` outside the shell will fail, because n
 cargo run --release
 ```
 
-The first build compiles libcosmic and takes several minutes. It produces the binary at `target/release/cosmic-cassette-deck` - run that directly next time, or `cargo run --release` again. (`Cargo.lock` is committed, so the build is reproducible; only regenerate it with `cargo generate-lockfile` if you change dependencies.)
+**First build:** it takes several minutes, mostly for libcosmic.
 
-On first run, see [Using it](#using-it) for adding your music and changing backgrounds.
+**Next time:** run `target/release/cosmic-cassette-deck` directly, or `cargo run --release` again.
 
-## Tech
+**Cargo.lock:** it's committed, so builds are repeatable. Only regenerate it with `cargo generate-lockfile` if you change dependencies.
 
-Rust, libcosmic (its vendored iced fork, wgpu renderer, Wayland and winit), rodio and symphonia (audio decode and playback), lofty (tags and embedded art), ab_glyph (label rasterization), mpris-server (MPRIS D-Bus), rfd (XDG-portal file picker), ureq with image and serde_json (album-art scraping), and tokio.
+Then see [Using it](#using-it) to add your music.
 
-## Assets
+## How it's built
 
-Skin art lives in `assets/`, and the colour skins are recolored variants of the base deck.
+**Made with:** Rust and libcosmic (its iced fork, with the wgpu renderer on Wayland). rodio and symphonia play the audio, lofty reads tags and cover art, ab_glyph draws the label text, mpris-server handles media keys, rfd opens file pickers, and ureq, image and serde_json download covers.
 
-The J-card is set in [Courier Prime](https://github.com/quoteunquoteapps/CourierPrime) (`assets/CourierPrime-*.ttf`), used under the SIL Open Font License 1.1; the license is in `assets/CourierPrime-OFL.txt`.
+**Reels:** the spin speeds come from how much tape is on each spool. The highlight on each hub stays still while the reel turns, the way light does on a real deck.
 
-Sound effects are FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, `end_clack`, `case_open`, `tape_lift`, `tape_slide`, and `eject_pop`. They are compiled into the binary, so swapping them means building from source: replace a clip with your own recording under the same name and rebuild. (An installed `.deb` or `.rpm` has them baked in - there is no file on disk to change.) Only `wind_loop` repeats; it is stitched seamless in code, so any length works. `case_open`, `tape_lift`, `tape_slide`, and `eject_pop` are cut from Freesound recordings released under Creative Commons 0 (public domain): [cassette.wav](https://freesound.org/people/moxobna/sounds/40164/) by moxobna, [cassette.wav](https://freesound.org/people/symphoid/sounds/159183/) by symphoid, and [Cassette Player Ejecting.wav](https://freesound.org/people/jpkweli/sounds/154756/) by jpkweli.
+**Label:** drawn once per song, not every frame, and rotated in code because iced can't rotate canvas text.
+
+## Credits
+
+**Deck art:** in `assets/`. The colours are recoloured versions of the same deck photo.
+
+**Font:** the J-card is typed in [Courier Prime](https://github.com/quoteunquoteapps/CourierPrime) (`assets/CourierPrime-*.ttf`), under the SIL Open Font License 1.1. The license is in `assets/CourierPrime-OFL.txt`.
+
+**Sounds:** short FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, `end_clack`, `case_open`, `tape_lift`, `tape_slide` and `eject_pop`.
+
+- **Built in:** they're compiled into the app. To use your own, replace a clip with one of the same name and build from source. Installed packages have no sound files on disk to swap.
+- **Looping:** only `wind_loop` repeats. It's stitched seamlessly in code, so any length works.
+- **Sources:** `case_open`, `tape_lift`, `tape_slide` and `eject_pop` are cut from Freesound recordings released as Creative Commons 0 (public domain): [cassette.wav](https://freesound.org/people/moxobna/sounds/40164/) by moxobna, [cassette.wav](https://freesound.org/people/symphoid/sounds/159183/) by symphoid, and [Cassette Player Ejecting.wav](https://freesound.org/people/jpkweli/sounds/154756/) by jpkweli.
 
 ## License
 
