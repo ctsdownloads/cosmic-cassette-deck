@@ -10,6 +10,10 @@ mod case_scene;
 mod case_open;
 mod artscrape;
 
+/// Smallest window the layout stays readable at.
+const MIN_W: f32 = 420.0;
+const MIN_H: f32 = 760.0;
+
 fn main() -> cosmic::iced::Result {
     // Render with Vulkan unless the user picked a backend. The OpenGL fallback
     // crashes on hybrid Intel/NVIDIA systems (khronos-egl panics when NVIDIA's
@@ -19,10 +23,17 @@ fn main() -> cosmic::iced::Result {
         std::env::set_var("WGPU_BACKEND", "vulkan");
     }
 
-    // Portrait window to match the skin's aspect (843×1264 + controls below).
+    // Portrait window to match the skin's aspect (843×1264 + controls below),
+    // or the size it had when it was last closed.
+    let size = app::read_state()
+        .get("window")
+        .and_then(|v| v.split_once('x'))
+        .and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)))
+        .filter(|&(w, h)| w >= MIN_W && h >= MIN_H)
+        .unwrap_or((560.0, 1020.0));
     let mut settings = cosmic::app::Settings::default()
-        .size(cosmic::iced::Size::new(560.0, 1020.0))
-        .size_limits(cosmic::iced::Limits::NONE.min_width(420.0).min_height(760.0));
+        .size(cosmic::iced::Size::new(size.0, size.1))
+        .size_limits(cosmic::iced::Limits::NONE.min_width(MIN_W).min_height(MIN_H));
 
     // Always the dark theme: every page sits on the charcoal background, so the
     // widgets and text must not follow a light desktop theme.

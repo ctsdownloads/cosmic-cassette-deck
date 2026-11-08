@@ -169,7 +169,7 @@ Playing a cassette starts at its first song and runs straight through the album,
 
 ### Where your settings live
 
-State is saved to `~/.config/cosmic-cassette-deck/state`: music folders, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume. Downloaded covers and the covers you picked are kept in `~/.cache/cosmic-cassette-deck/covers` (for the Flatpak, `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/covers`).
+State is saved to `~/.config/cosmic-cassette-deck/state`: music folders, window size, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume. Downloaded covers and the covers you picked are kept in `~/.cache/cosmic-cassette-deck/covers` (for the Flatpak, `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/covers`).
 
 ## Building from source (for hacking on it)
 
