@@ -122,6 +122,8 @@ pub enum Message {
     ShowJCard(usize),
     FlipJCard,
     Redraw,
+    /// Esc: close the About card or the J-card.
+    Escape,
     CloseJCard,
     OpenCase { album: usize, track: usize }, // open the case, then load
     TogglePlay,
@@ -809,6 +811,7 @@ impl Application for App {
                 match key.as_ref() {
                     Key::Named(Named::ArrowLeft) => Some(Message::BrowseStep(-1)),
                     Key::Named(Named::ArrowRight) => Some(Message::BrowseStep(1)),
+                    Key::Named(Named::Escape) => Some(Message::Escape),
                     Key::Character(c) if free && c == " " => Some(Message::TogglePlay),
                     Key::Character(c) if free => {
                         let mut chars = c.chars();
@@ -1124,6 +1127,13 @@ impl Application for App {
                 if let Screen::JCard { album, side } = self.screen {
                     self.screen = Screen::JCard { album, side: 1 - side };
                     self.refresh_jcard();
+                }
+            }
+            Message::Escape => {
+                if self.show_about {
+                    self.show_about = false;
+                } else if matches!(self.screen, Screen::JCard { .. }) {
+                    return self.update(Message::CloseJCard);
                 }
             }
             Message::Redraw => {
