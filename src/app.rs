@@ -2470,12 +2470,18 @@ fn gradient_bg(top: [u8; 3], bot: [u8; 3]) -> cosmic::widget::image::Handle {
 /// A row of buttons that wraps onto more lines when the window is too
 /// narrow, so no button is ever cut off.
 fn wrap_row(children: Vec<Element<'_, Message>>) -> Element<'_, Message> {
-    widget::flex_row(children)
-        .spacing(10)
-        .width(Length::Fill)
-        .justify_content(cosmic::widget::JustifyContent::Center)
-        .align_items(Alignment::Center)
-        .into()
+    // The flex row centres its buttons across the full width but reports
+    // only the width up to its last button, so a centring parent would
+    // shift it right a second time. The full-width container stops that.
+    container(
+        widget::flex_row(children)
+            .spacing(10)
+            .width(Length::Fill)
+            .justify_content(cosmic::widget::JustifyContent::Center)
+            .align_items(Alignment::Center),
+    )
+    .width(Length::Fill)
+    .into()
 }
 
 /// "Scanning your tapes…" with how many songs have been read so far.
