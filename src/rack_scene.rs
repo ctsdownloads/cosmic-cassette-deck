@@ -100,7 +100,8 @@ impl<'a> canvas::Program<Message, cosmic::Theme, cosmic::Renderer> for RackScene
         if let Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) = event {
             let pos = cursor.position_in(bounds)?;
             let l = Layout::new(bounds.size());
-            // Side zones step; front case plays.
+            // Side zones step; clicking the front case inserts it and plays,
+            // the same as the Play button.
             if l.left_zone(bounds.size()).contains(pos) {
                 return Some(Action::publish(Message::BrowseStep(-1)).and_capture());
             }
@@ -109,7 +110,8 @@ impl<'a> canvas::Program<Message, cosmic::Theme, cosmic::Renderer> for RackScene
             }
             if l.front_rect().contains(pos) && self.current < self.albums.len() {
                 return Some(
-                    Action::publish(Message::AlbumSelected(self.current)).and_capture(),
+                    Action::publish(Message::OpenCase { album: self.current, track: 0 })
+                        .and_capture(),
                 );
             }
         }
