@@ -128,6 +128,9 @@ pub enum Message {
     WindStop,
     ToggleSkipMode, // FUNCT tab: FF/REW become track skip while latched
     BrowseStep(i32), // fan browser: step ±1 through albums
+    /// A letter or digit key: on the rack it jumps to the next artist whose
+    /// name starts with it; elsewhere S still stops.
+    LetterKey(char),
     CycleSkin,
     CycleBackground,
     PickBackground,
@@ -752,6 +755,7 @@ impl Application for App {
         // Space plays/pauses and S stops (S again, stopped on the player,
         // ejects) - only when no widget took the key (e.g. a focused button)
         // and no modifier is held, so Ctrl+S and the like pass through.
+        // On the rack, letters and digits jump to artists (S included).
         let keys = cosmic::iced::event::listen_with(|event, status, _id| {
             use cosmic::iced::keyboard::{key::Named, Event as KeyEvent, Key};
             if let cosmic::iced::Event::Keyboard(KeyEvent::KeyPressed { key, modifiers, .. }) = event {
@@ -760,7 +764,15 @@ impl Application for App {
                     Key::Named(Named::ArrowLeft) => Some(Message::BrowseStep(-1)),
                     Key::Named(Named::ArrowRight) => Some(Message::BrowseStep(1)),
                     Key::Character(c) if free && c == " " => Some(Message::TogglePlay),
-                    Key::Character(c) if free && c.eq_ignore_ascii_case("s") => Some(Message::Stop),
+                    Key::Character(c) if free => {
+                        let mut chars = c.chars();
+                        match (chars.next(), chars.next()) {
+                            (Some(ch), None) if ch.is_alphanumeric() => {
+                                ch.to_lowercase().next().map(Message::LetterKey)
+                            }
+                            _ => None,
+                        }
+                    }
                     _ => None,
                 }
             } else {
@@ -1251,6 +1263,27 @@ impl Application for App {
                         self.browse_index = i as usize;
                         self.rebuild_fan();
                     }
+                }
+            }
+
+            Message::LetterKey(c) => {
+                if matches!(self.screen, Screen::Rack) {
+                    // The first tape of each artist whose name starts with the
+                    // letter, in rack order. Pressing it again moves on to the
+                    // next such artist, wrapping around.
+                    let lower: Vec<String> =
+                        self.library.iter().map(|a| a.artist.to_lowercase()).collect();
+                    let starts: Vec<usize> = (0..lower.len())
+                        .filter(|&i| lower[i].starts_with(c) && (i == 0 || lower[i - 1] != lower[i]))
+                        .collect();
+                    if let Some(&i) =
+                        starts.iter().find(|&&i| i > self.browse_index).or(starts.first())
+                    {
+                        self.browse_index = i;
+                        self.rebuild_fan();
+                    }
+                } else if c == 's' {
+                    return self.update(Message::Stop);
                 }
             }
 
