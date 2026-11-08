@@ -20,6 +20,8 @@ pub struct Track {
     pub path: PathBuf,
     pub duration: Duration,
     pub number: u32,
+    /// Disc number for multi-disc albums (0 when not tagged).
+    pub disc: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -149,9 +151,13 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
     let mut out: Vec<Album> = albums.into_values().collect();
     out.sort_by_cached_key(|a| (a.artist.to_lowercase(), a.title.to_lowercase()));
     for album in &mut out {
-        album
-            .tracks
-            .sort_by(|a, b| a.number.cmp(&b.number).then_with(|| a.title.cmp(&b.title)));
+        // Disc 1 in order, then disc 2, and so on.
+        album.tracks.sort_by(|a, b| {
+            a.disc
+                .cmp(&b.disc)
+                .then(a.number.cmp(&b.number))
+                .then_with(|| a.title.cmp(&b.title))
+        });
     }
     (out, skipped)
 }
@@ -259,6 +265,7 @@ fn read_track(
         mb_release: mb_id(&ItemKey::MusicBrainzReleaseId),
     };
 
+    let disc = tag.and_then(|t| t.disk()).unwrap_or(0);
     let (title, album, artist, number, art) = match tag {
         Some(tag) => {
             let art = tag
@@ -320,6 +327,7 @@ fn read_track(
             path: path.to_path_buf(),
             duration,
             number,
+            disc,
         },
         art,
         info,
