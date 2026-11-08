@@ -127,7 +127,7 @@ The app always uses its dark look, so it stays readable whatever theme your desk
 
 ### Add your music
 
-Click **Folders**, then **Add folder…**, and point it at your music directory. The app scans it recursively, reads the tags, groups the files into album cassettes, and fills the rack. Click a cassette to play it.
+Click **Folders**, then **Add folder…**, and point it at your music directory. The app scans it recursively, reads the tags, groups the files into album cassettes, and fills the rack. Click a cassette to play it. While a big library scans, the rack counts the songs it has read so far.
 
 Files are grouped into albums by their Album Artist (or Artist, when there is no Album Artist) and Album tags (read with lofty), so each album is one cassette no matter how many songs it holds, and its tracks play in track-number order (disc by disc on multi-disc albums). If the same song is in your folder twice, the cassette plays it once. Tags that differ only in capital letters, extra spaces, or curly versus straight quotes still count as the same album, so one song tagged "...And Justice For All" stays on the same cassette as the rest; the cassette shows the spelling most of its songs use. Files with no tags fall back to their `Artist - Title` filename, and each becomes its own single. Formats: MP3, FLAC, M4A/AAC, and WAV.
 
@@ -163,7 +163,7 @@ Your choice applies to the rack, the J-card, and the insert animation, and is re
 - **Walkman** cycles the deck through its five colour skins.
 - **Wallpaper: On / Off** fills the space around the deck with the playing album's cover art. Off by default, and remembered. This is separate from the room background above.
 - **Music Rack** goes back to the shelf. **About** shows the version and a link to the project.
-- Click the tape label to open that tape's J-card. **Esc** closes the J-card or the About card.
+- Click the tape label to open that tape's J-card. **Esc** closes the J-card, About, or Folders.
 
 Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf, and after the last one starts over from the first. To move between songs, click **FUNCT** on the deck so fast-forward and rewind skip to the next or previous song instead of winding the tape; click it again to go back to winding. Your keyboard's media keys and your desktop's player controls also skip songs. The label always shows the song that is playing.
 
