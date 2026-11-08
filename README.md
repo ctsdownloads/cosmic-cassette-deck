@@ -130,6 +130,18 @@ Files are grouped into albums by their Artist and Album tags (read with lofty), 
 
 Your folder is remembered, so this is a one-time step. To point it somewhere else, click **Open Folder** again.
 
+### Album covers
+
+Each cassette shows its album's cover. The app uses the first one it finds:
+
+1. A picture stored in the song files' tags.
+2. An image in the album's folder named `cover`, `folder`, `front`, or `album` (`.jpg`, `.jpeg`, or `.png`).
+3. A download from the Cover Art Archive. If your tags carry a MusicBrainz release or release-group ID, that exact release's cover is used; otherwise the album is looked up by artist and album name.
+
+Loose songs with no Album tag are never looked up by name, so a single does not end up wearing the wrong album's cover. If a download fails because you are offline, it is tried again the next time the app starts.
+
+Wrong cover, or none at all? Bring the album to the front of the rack and click **Change cover…** under it to pick an image (PNG, JPG, or WEBP). Your pick wins over everything above and is remembered.
+
 ### Change the room background
 
 The room behind the cassettes is swappable. On the Cassette Rack screen:
@@ -153,7 +165,7 @@ Playing a cassette starts at its first song and runs straight through the album,
 
 ### Where your settings live
 
-State is saved to `~/.config/cosmic-cassette-deck/state`: music folder, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume.
+State is saved to `~/.config/cosmic-cassette-deck/state`: music folder, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume. Downloaded covers and the covers you picked are kept in `~/.cache/cosmic-cassette-deck/covers` (for the Flatpak, `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/covers`).
 
 ## Building from source (for hacking on it)
 

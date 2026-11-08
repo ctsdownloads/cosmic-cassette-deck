@@ -30,7 +30,24 @@ pub struct Album {
     /// Raw bytes of the embedded cover (if any), for compositing onto cases.
     pub art_bytes: Option<std::sync::Arc<Vec<u8>>>,
     pub tracks: Vec<Track>,
+    /// No album tag: a loose song shown as its own single.
+    pub single: bool,
+    /// Exact MusicBrainz IDs from the tags (e.g. written by Picard), so the
+    /// cover can be fetched for that exact album instead of searched for.
+    pub mb_release_group: Option<String>,
+    pub mb_release: Option<String>,
 }
+
+/// Per-file extras that belong to the album, not the track.
+struct AlbumInfo {
+    single: bool,
+    mb_release_group: Option<String>,
+    mb_release: Option<String>,
+}
+
+/// Cover image files looked for next to an album's songs, in this order.
+const FOLDER_COVER_NAMES: &[&str] = &["cover", "folder", "front", "album"];
+const FOLDER_COVER_EXTS: &[&str] = &["jpg", "jpeg", "png"];
 
 const AUDIO_EXTS: &[&str] = &["mp3", "flac", "m4a", "wav"];
 
@@ -40,6 +57,8 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
     // Keyed by (artist, album) so two artists with an album named
     // "Greatest Hits" don't collide.
     let mut albums: BTreeMap<(String, String), Album> = BTreeMap::new();
+    // Folder of each album's first song, for a cover image file beside it.
+    let mut album_dirs: BTreeMap<(String, String), PathBuf> = BTreeMap::new();
     let mut skipped: usize = 0;
 
     for entry in walkdir::WalkDir::new(&dir)
@@ -53,18 +72,30 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
             })
         })
     {
-        let Some((key, track, art_bytes)) = read_track(entry.path()) else {
+        let Some((key, track, art_bytes, info)) = read_track(entry.path()) else {
             skipped += 1;
             continue;
         };
         {
+            if let Some(dir) = entry.path().parent() {
+                album_dirs.entry(key.clone()).or_insert_with(|| dir.to_path_buf());
+            }
             let album = albums.entry(key.clone()).or_insert_with(|| Album {
                 title: key.1.clone(),
                 artist: key.0.clone(),
                 art: None,
                 art_bytes: None,
                 tracks: Vec::new(),
+                single: info.single,
+                mb_release_group: None,
+                mb_release: None,
             });
+            if album.mb_release_group.is_none() {
+                album.mb_release_group = info.mb_release_group;
+            }
+            if album.mb_release.is_none() {
+                album.mb_release = info.mb_release;
+            }
             if album.art_bytes.is_none() {
                 if let Some(bytes) = art_bytes {
                     album.art = Some(image::Handle::from_bytes((*bytes).clone()));
@@ -72,6 +103,19 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
                 }
             }
             album.tracks.push(track);
+        }
+    }
+
+    // No embedded picture? Use a cover image saved next to the songs. Loose
+    // songs are skipped: a cover.jpg in a mixed folder isn't theirs.
+    for (key, album) in albums.iter_mut() {
+        if album.art_bytes.is_some() || album.single {
+            continue;
+        }
+        if let Some(bytes) = album_dirs.get(key).and_then(|d| folder_cover(d)) {
+            let bytes = std::sync::Arc::new(bytes);
+            album.art = Some(image::Handle::from_bytes((*bytes).clone()));
+            album.art_bytes = Some(bytes);
         }
     }
 
@@ -86,10 +130,39 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
     (out, skipped)
 }
 
-/// Parse one file. Returns ((artist, album), track, cover_art).
+/// First cover image file in `dir` (cover/folder/front/album .jpg/.jpeg/.png,
+/// any case) that reads and decodes as an image.
+fn folder_cover(dir: &Path) -> Option<Vec<u8>> {
+    let files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .collect();
+    for name in FOLDER_COVER_NAMES {
+        for path in &files {
+            let stem_ok = path
+                .file_stem()
+                .is_some_and(|s| s.to_string_lossy().eq_ignore_ascii_case(name));
+            let ext_ok = path.extension().is_some_and(|e| {
+                FOLDER_COVER_EXTS.iter().any(|x| e.eq_ignore_ascii_case(x))
+            });
+            if stem_ok && ext_ok {
+                if let Ok(bytes) = std::fs::read(path) {
+                    if ::image::load_from_memory(&bytes).is_ok() {
+                        return Some(bytes);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Parse one file. Returns ((artist, album), track, cover_art, album info).
 fn read_track(
     path: &Path,
-) -> Option<((String, String), Track, Option<std::sync::Arc<Vec<u8>>>)> {
+) -> Option<((String, String), Track, Option<std::sync::Arc<Vec<u8>>>, AlbumInfo)> {
     let tagged = Probe::open(path).ok()?.read().ok()?;
     let duration = tagged.properties().duration();
 
@@ -131,6 +204,17 @@ fn read_track(
         } else {
             ("Unknown Artist".into(), rest.trim().to_string(), number)
         }
+    };
+
+    let mb_id = |key: &ItemKey| {
+        tag.and_then(|t| t.get_string(key))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    };
+    let info = AlbumInfo {
+        single: !tag.is_some_and(|t| t.album().is_some_and(|c| !c.trim().is_empty())),
+        mb_release_group: mb_id(&ItemKey::MusicBrainzReleaseGroupId),
+        mb_release: mb_id(&ItemKey::MusicBrainzReleaseId),
     };
 
     let (title, album, artist, number, art) = match tag {
@@ -189,5 +273,6 @@ fn read_track(
             number,
         },
         art,
+        info,
     ))
 }

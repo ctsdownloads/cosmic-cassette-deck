@@ -131,6 +131,8 @@ pub enum Message {
     BackgroundChosen(Option<PathBuf>),
     RemoveBackground,
     ArtLoaded(ArtResult),
+    PickCover(usize),
+    CoverChosen(usize, Option<PathBuf>),
     Mpris(MprisCmd),
     ToggleAbout,
     OpenRepo,
@@ -167,6 +169,8 @@ pub struct App {
     browse_index: usize,
     /// Raw cover bytes per album index (scraped), for case compositing.
     cover_bytes: std::collections::HashMap<usize, std::sync::Arc<Vec<u8>>>,
+    /// Bumped for each cover lookup, so a fresh delivery stream starts for it.
+    art_gen: u64,
     /// Composed case sprites for the current fan window (centre first).
     fan_cases: Vec<cosmic::widget::image::Handle>,
     label_img: Option<cosmic::widget::image::Handle>,
@@ -301,17 +305,26 @@ impl App {
         let requests: Vec<ArtRequest> = self
             .library
             .iter()
-            .filter(|a| a.art.is_none())
-            .map(|a| ArtRequest {
+            .enumerate()
+            .filter(|(i, a)| a.art.is_none() && !self.cover_bytes.contains_key(i))
+            // A loose song with no exact ID has nothing reliable to look up.
+            .filter(|(_, a)| !a.single || a.mb_release_group.is_some() || a.mb_release.is_some())
+            .map(|(_, a)| ArtRequest {
                 key: album_art_key(a),
                 artist: a.artist.clone(),
                 title: a.title.clone(),
+                release_group: a.mb_release_group.clone(),
+                release: a.mb_release.clone(),
+                search: !a.single,
             })
             .collect();
         if requests.is_empty() {
             return;
         }
         let (tx, rx) = std::sync::mpsc::channel::<ArtResult>();
+        // The stream that delivers covers takes the receiver when it starts,
+        // so it must start after the receiver exists: a new id restarts it.
+        self.art_gen += 1;
         if let Some(slot) = ART_RX.get() {
             *slot.lock().unwrap() = Some(rx);
         } else {
@@ -328,6 +341,25 @@ impl App {
                 album: album.title.clone(),
                 length_secs: track.duration.as_secs_f64(),
             });
+        }
+    }
+
+    /// Show `bytes` as album `idx`'s cover: on the rack, the album screen and,
+    /// if it's the tape in the deck, the wallpaper.
+    fn set_cover(&mut self, idx: usize, bytes: Vec<u8>) {
+        let bytes = std::sync::Arc::new(bytes);
+        self.cover_bytes.insert(idx, bytes.clone());
+        self.library[idx].art = Some(cosmic::widget::image::Handle::from_bytes((*bytes).clone()));
+        if self.current.map(|(a, _)| a) == Some(idx) {
+            self.refresh_backdrop();
+        }
+        // Only recompose the fan if this album is in the visible window
+        // (centre ± FAN_EACH_SIDE, wrapping around the ends).
+        let n = self.library.len() as i64;
+        let d = crate::rack_scene::FAN_EACH_SIDE as i64;
+        let cur = self.browse_index as i64;
+        if n > 0 && (-d..=d).any(|off| (cur + off).rem_euclid(n) == idx as i64) {
+            self.rebuild_fan();
         }
     }
 
@@ -638,6 +670,7 @@ impl Application for App {
             case_png: std::sync::Arc::new(CASE_T_PNG.to_vec()),
             browse_index: 0,
             cover_bytes: std::collections::HashMap::new(),
+            art_gen: 0,
             fan_cases: Vec::new(),
             label_img: None,
             incoming_label: None,
@@ -734,7 +767,7 @@ impl Application for App {
             ticks,
             keys,
             Subscription::run(mpris_commands),
-            Subscription::run(art_results),
+            Subscription::run_with(self.art_gen, |_: &u64| art_results()),
         ])
     }
 
@@ -902,6 +935,18 @@ impl Application for App {
             Message::LibraryLoaded { albums, skipped } => {
                 self.scanning = false;
                 self.library = albums;
+                // Covers are stored by rack position: clear the old library's,
+                // or a new folder's albums would show them.
+                self.cover_bytes.clear();
+                // Covers the user picked win over every other source.
+                for idx in 0..self.library.len() {
+                    let picked = artscrape::user_cover_path(&album_art_key(&self.library[idx]))
+                        .and_then(|p| std::fs::read(p).ok())
+                        .filter(|b| !b.is_empty());
+                    if let Some(bytes) = picked {
+                        self.set_cover(idx, bytes);
+                    }
+                }
                 let _ = self.audio_tx.send(AudioCmd::Stop);
                 self.current = None;
                 self.player_backdrop = None;
@@ -933,26 +978,10 @@ impl Application for App {
                     .iter()
                     .position(|a| album_art_key(a) == result.key)
                 {
-                    let bytes = std::sync::Arc::new(result.bytes);
-                    self.cover_bytes.insert(idx, bytes.clone());
-                    // If this cover is for the tape currently in the deck,
-                    // rebuild its backdrop now that art has arrived.
-                    if self.current.map(|(a, _)| a) == Some(idx) {
-                        self.refresh_backdrop();
-                    }
-                    self.library[idx].art = Some(
-                        cosmic::widget::image::Handle::from_bytes((*bytes).clone()),
-                    );
-                    // Only recompose the fan if this album is in the visible
-                    // window (centre ± FAN_EACH_SIDE, wrapping around the ends).
-                    let n = self.library.len();
-                    let d = crate::rack_scene::FAN_EACH_SIDE as i64;
-                    let cur = self.browse_index as i64;
-                    let this = idx as i64;
-                    let nn = n as i64;
-                    let in_window = (-d..=d).any(|off| (cur + off).rem_euclid(nn) == this);
-                    if in_window {
-                        self.rebuild_fan();
+                    // A cover picked meanwhile is not replaced by a download.
+                    let picked = artscrape::user_cover_path(&result.key).is_some_and(|p| p.exists());
+                    if !picked {
+                        self.set_cover(idx, result.bytes);
                     }
                 }
             }
@@ -1137,6 +1166,40 @@ impl Application for App {
                 }
             }
             Message::BackgroundChosen(None) => {}
+
+            Message::PickCover(idx) => {
+                return cosmic::task::future(async move {
+                    let file = rfd::AsyncFileDialog::new()
+                        .set_title("Choose a cover image")
+                        .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
+                        .pick_file()
+                        .await;
+                    Message::CoverChosen(idx, file.map(|f| f.path().to_path_buf()))
+                });
+            }
+            Message::CoverChosen(idx, Some(path)) => {
+                let Some(album) = self.library.get(idx) else {
+                    return Task::none();
+                };
+                let key = album_art_key(album);
+                match std::fs::read(&path) {
+                    Ok(bytes) if ::image::load_from_memory(&bytes).is_ok() => {
+                        // Keep a copy, so the choice survives the file moving.
+                        if let Some(dest) = artscrape::user_cover_path(&key) {
+                            if let Some(dir) = dest.parent() {
+                                let _ = std::fs::create_dir_all(dir);
+                            }
+                            if let Err(e) = std::fs::write(&dest, &bytes) {
+                                self.notice = Some(format!("Couldn't save cover: {e}"));
+                            }
+                        }
+                        self.set_cover(idx, bytes);
+                    }
+                    Ok(_) => self.notice = Some("That file isn't an image the app can read".into()),
+                    Err(e) => self.notice = Some(format!("Couldn't load cover: {e}")),
+                }
+            }
+            Message::CoverChosen(_, None) => {}
 
             Message::RemoveBackground => {
                 // Only user-added backgrounds can be removed; built-ins stay.
@@ -1523,7 +1586,21 @@ let nav = self.deck_nav();
             .filter(|(i, a)| a.art_bytes.is_some() || self.cover_bytes.contains_key(i))
             .count();
         let total = self.library.len();
-        let counter = if covered < total {
+        // Loose songs without an exact ID are never looked up, so they don't
+        // keep the "covers loaded" note on screen forever.
+        let expected = self
+            .library
+            .iter()
+            .enumerate()
+            .filter(|(i, a)| {
+                a.art_bytes.is_some()
+                    || self.cover_bytes.contains_key(i)
+                    || !a.single
+                    || a.mb_release_group.is_some()
+                    || a.mb_release.is_some()
+            })
+            .count();
+        let counter = if covered < expected {
             format!(
                 "{} / {}   ·   {} covers loaded",
                 self.browse_index + 1,
@@ -1551,6 +1628,11 @@ let nav = self.deck_nav();
                         }),
                     )
                     .push(button::standard("Next ›").on_press(Message::BrowseStep(1))),
+            )
+            .push(
+                button::text("Change cover…").on_press_maybe(
+                    (!self.library.is_empty()).then_some(Message::PickCover(self.browse_index)),
+                ),
             );
 
         // Canvas takes the flexible space; controls sit in a fixed footer that

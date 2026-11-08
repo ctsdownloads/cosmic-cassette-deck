@@ -30,6 +30,30 @@ pub struct ArtRequest {
     pub key: String,
     pub artist: String,
     pub title: String,
+    /// Exact MusicBrainz IDs from the tags; tried before any search.
+    pub release_group: Option<String>,
+    pub release: Option<String>,
+    /// Allow a name search when there is no exact ID. Off for loose songs,
+    /// where a search can only guess which album the song came from.
+    pub search: bool,
+}
+
+impl ArtRequest {
+    /// Cache filename stem. An exact ID gets its own entry, so an old guess
+    /// cached under the album's name is never reused for it.
+    fn cache_key(&self) -> String {
+        match (&self.release_group, &self.release) {
+            (Some(rg), _) => format!("rg_{rg}"),
+            (None, Some(rel)) => format!("rel_{rel}"),
+            (None, None) => self.key.clone(),
+        }
+    }
+}
+
+/// Where a cover the user picked for an album is kept. It wins over every
+/// other source.
+pub fn user_cover_path(album_key: &str) -> Option<PathBuf> {
+    Some(cache_dir()?.join(format!("user_{}.img", sanitize(album_key))))
 }
 
 /// A fetched cover: PNG/JPEG bytes ready for `image::Handle::from_bytes`.
@@ -59,10 +83,11 @@ pub fn spawn(requests: Vec<ArtRequest>, out: Sender<ArtResult>) {
                 if done % 10 == 0 {
                     eprintln!("[artscrape] progress: {done}/{total}");
                 }
+                let cache_key = req.cache_key();
                 // 1. Disk cache - positive (image) or negative (.none marker).
                 if let Some(dir) = &cache {
-                    let img_path = dir.join(format!("{}.img", sanitize(&req.key)));
-                    let none_path = dir.join(format!("{}.none", sanitize(&req.key)));
+                    let img_path = dir.join(format!("{}.img", sanitize(&cache_key)));
+                    let none_path = dir.join(format!("{}.none", sanitize(&cache_key)));
                     if none_path.exists() {
                         continue; // known miss; don't refetch
                     }
@@ -85,9 +110,10 @@ pub fn spawn(requests: Vec<ArtRequest>, out: Sender<ArtResult>) {
                 // doubling the wait each time (1s, 2s, 4s, 8s).
                 let mut backoff = Duration::from_secs(1);
                 let mut result = None;
+                let mut offline = false;
                 for attempt in 0..4 {
                     let f = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        fetch_cover(&req.artist, &req.title)
+                        fetch_for(&req)
                     }))
                     .unwrap_or(Err(FetchError::NotFound));
                     match f {
@@ -102,7 +128,11 @@ pub fn spawn(requests: Vec<ArtRequest>, out: Sender<ArtResult>) {
                             last_mb = Instant::now();
                             continue;
                         }
-                        _ => break, // NotFound, empty, or out of retries
+                        Err(FetchError::Network) | Err(FetchError::RateLimited) => {
+                            offline = true;
+                            break;
+                        }
+                        _ => break, // NotFound or empty
                     }
                 }
 
@@ -111,7 +141,7 @@ pub fn spawn(requests: Vec<ArtRequest>, out: Sender<ArtResult>) {
                         eprintln!("[artscrape]   found ({} bytes)", bytes.len());
                         if let Some(dir) = &cache {
                             let _ = std::fs::write(
-                                dir.join(format!("{}.img", sanitize(&req.key))),
+                                dir.join(format!("{}.img", sanitize(&cache_key))),
                                 &bytes,
                             );
                         }
@@ -120,11 +150,16 @@ pub fn spawn(requests: Vec<ArtRequest>, out: Sender<ArtResult>) {
                             bytes,
                         });
                     }
+                    // A network or server problem is not "no cover": cache
+                    // nothing, so the next launch tries again.
+                    None if offline => {
+                        eprintln!("[artscrape]   - network problem, will retry next launch");
+                    }
                     None => {
                         eprintln!("[artscrape]   - no art");
                         if let Some(dir) = &cache {
                             let _ = std::fs::write(
-                                dir.join(format!("{}.none", sanitize(&req.key))),
+                                dir.join(format!("{}.none", sanitize(&cache_key))),
                                 [],
                             );
                         }
@@ -139,6 +174,28 @@ pub fn spawn(requests: Vec<ArtRequest>, out: Sender<ArtResult>) {
 enum FetchError {
     NotFound,
     RateLimited,
+    /// Couldn't reach the server or it failed; says nothing about the cover.
+    Network,
+}
+
+/// Cover for one request: the exact release group, then the exact release,
+/// then (only if allowed) a search by artist and album name.
+fn fetch_for(req: &ArtRequest) -> Result<Vec<u8>, FetchError> {
+    if let Some(rg) = &req.release_group {
+        if let Some(bytes) = caa_front("release-group", rg)? {
+            return Ok(bytes);
+        }
+    }
+    if let Some(rel) = &req.release {
+        if let Some(bytes) = caa_front("release", rel)? {
+            return Ok(bytes);
+        }
+    }
+    if req.search {
+        fetch_cover(&req.artist, &req.title)
+    } else {
+        Err(FetchError::NotFound)
+    }
 }
 
 /// Accurate album-cover lookup, two-tier:
@@ -155,22 +212,20 @@ fn fetch_cover(artist: &str, title: &str) -> Result<Vec<u8>, FetchError> {
     // Tier 1: release-group search.
     match best_release_group_rg(artist, title) {
         Ok(Some(rgid)) => {
-            if let Some(bytes) = caa_front_group(&rgid) {
+            if let Some(bytes) = caa_front("release-group", &rgid)? {
                 return Ok(bytes);
             }
         }
-        Err(FetchError::RateLimited) => return Err(FetchError::RateLimited),
+        Err(e @ (FetchError::RateLimited | FetchError::Network)) => return Err(e),
         _ => {}
     }
 
     // Tier 2: recording search -> studio-album release-group.
     match best_release_group_recording(artist, title) {
-        Ok(Some(rgid)) => {
-            if let Some(bytes) = caa_front_group(&rgid) {
-                return Ok(bytes);
-            }
-            Err(FetchError::NotFound)
-        }
+        Ok(Some(rgid)) => match caa_front("release-group", &rgid)? {
+            Some(bytes) => Ok(bytes),
+            None => Err(FetchError::NotFound),
+        },
         Err(e) => Err(e),
         Ok(None) => Err(FetchError::NotFound),
     }
@@ -187,9 +242,11 @@ fn mb_json(url: &str) -> Result<serde_json::Value, FetchError> {
         Err(ureq::Error::Status(code, _)) if code == 429 || code == 503 => {
             return Err(FetchError::RateLimited)
         }
-        Err(_) => return Err(FetchError::NotFound),
+        Err(ureq::Error::Status(code, _)) if code >= 500 => return Err(FetchError::Network),
+        Err(ureq::Error::Status(..)) => return Err(FetchError::NotFound),
+        Err(ureq::Error::Transport(_)) => return Err(FetchError::Network),
     };
-    resp.into_json().map_err(|_| FetchError::NotFound)
+    resp.into_json().map_err(|_| FetchError::Network)
 }
 
 /// Tier 1: best studio-album release-group id from a release-group search.
@@ -275,42 +332,60 @@ fn best_release_group_recording(
     Ok(best.map(|(_, id)| id))
 }
 
-/// Cover Art Archive: front-cover thumbnail bytes for a RELEASE-GROUP.
-fn caa_front_group(rgid: &str) -> Option<Vec<u8>> {
-    let meta_url = format!("https://coverartarchive.org/release-group/{}", rgid);
-    let resp = ureq::get(&meta_url)
-        .set("User-Agent", USER_AGENT)
-        .timeout(HTTP_TIMEOUT)
-        .call()
-        .ok()?;
-    let json: serde_json::Value = resp.into_json().ok()?;
-    let images = json.get("images")?.as_array()?;
+/// Cover Art Archive front-cover image for a release group or a release
+/// (`kind` is "release-group" or "release"). Ok(None) means it has no cover;
+/// Err(Network) means the server couldn't be reached or failed.
+fn caa_front(kind: &str, id: &str) -> Result<Option<Vec<u8>>, FetchError> {
+    let get = |url: &str| -> Result<Option<ureq::Response>, FetchError> {
+        match ureq::get(url)
+            .set("User-Agent", USER_AGENT)
+            .timeout(HTTP_TIMEOUT)
+            .call()
+        {
+            Ok(r) => Ok(Some(r)),
+            Err(ureq::Error::Status(code, _)) if code >= 500 => Err(FetchError::Network),
+            Err(ureq::Error::Status(..)) => Ok(None),
+            Err(ureq::Error::Transport(_)) => Err(FetchError::Network),
+        }
+    };
 
-    let img = images
+    let Some(resp) = get(&format!("https://coverartarchive.org/{kind}/{id}"))? else {
+        return Ok(None);
+    };
+    let Ok(json) = resp.into_json::<serde_json::Value>() else {
+        return Err(FetchError::Network);
+    };
+    let Some(images) = json.get("images").and_then(|i| i.as_array()) else {
+        return Ok(None);
+    };
+    let Some(img) = images
         .iter()
         .find(|i| i.get("front").and_then(|f| f.as_bool()).unwrap_or(false))
-        .or_else(|| images.first())?;
+        .or_else(|| images.first())
+    else {
+        return Ok(None);
+    };
 
     let thumbs = img.get("thumbnails");
-    let url = thumbs
+    let Some(url) = thumbs
         .and_then(|t| t.get("500"))
         .or_else(|| thumbs.and_then(|t| t.get("large")))
         .and_then(|u| u.as_str())
-        .map(|s| s.to_string())
-        .or_else(|| img.get("image").and_then(|u| u.as_str()).map(|s| s.to_string()))?;
-    let url = url.replace("http://", "https://");
+        .or_else(|| img.get("image").and_then(|u| u.as_str()))
+        .map(|s| s.replace("http://", "https://"))
+    else {
+        return Ok(None);
+    };
 
-    let resp = ureq::get(&url)
-        .set("User-Agent", USER_AGENT)
-        .timeout(HTTP_TIMEOUT)
-        .call()
-        .ok()?;
+    let Some(resp) = get(&url)? else {
+        return Ok(None);
+    };
     let mut bytes = Vec::new();
     resp.into_reader()
         .take(6 * 1024 * 1024)
         .read_to_end(&mut bytes)
-        .ok()?;
-    (!bytes.is_empty()).then_some(bytes)
+        .map_err(|_| FetchError::Network)?;
+    Ok((!bytes.is_empty()).then_some(bytes))
 }
 
 fn cache_dir() -> Option<PathBuf> {
