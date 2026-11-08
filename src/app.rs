@@ -43,6 +43,10 @@ const SWAP_ANIM: Duration = Duration::from_millis(1300);
 const SLIDE_SFX: Duration = Duration::from_millis(450);
 /// After an eject, the rack fades in from the deck's charcoal.
 const RACK_FADE: Duration = Duration::from_millis(280);
+/// After any change, how long to keep redrawing, and how often, so a newly
+/// shown picture always appears even when nothing else is moving.
+const SETTLE: Duration = Duration::from_millis(1200);
+const SETTLE_TICK: Duration = Duration::from_millis(100);
 /// Reel spin-up / spin-down time constant (seconds) on play, pause and stop.
 const REEL_TAU: f32 = 0.12;
 
@@ -184,6 +188,8 @@ pub struct App {
     label_img: Option<cosmic::widget::image::Handle>,
     /// The J-card side on screen, drawn when it opens or its song changes.
     jcard_img: Option<cosmic::widget::image::Handle>,
+    /// Keep redrawing until then, so a newly shown picture appears.
+    redraw_until: Option<Instant>,
     /// Label for the track an insert animation is loading, rendered when the
     /// animation starts so the tape slides in already labelled.
     incoming_label: Option<cosmic::widget::image::Handle>,
@@ -720,6 +726,7 @@ impl Application for App {
             fan_cases: Vec::new(),
             label_img: None,
             jcard_img: None,
+            redraw_until: None,
             incoming_label: None,
             incoming_backdrop: None,
             player_backdrop: None,
@@ -819,18 +826,19 @@ impl Application for App {
             }
         });
 
-        // A newly drawn J-card can miss the frame it first appears in; on a
-        // still screen nothing would draw it again, so keep a slow redraw
-        // going while the card is open.
-        let jcard = if matches!(self.screen, Screen::JCard { .. }) {
-            cosmic::iced::time::every(Duration::from_millis(250)).map(|_| Message::Redraw)
+        // A newly shown picture (a background, a cover, the J-card) can miss
+        // the frame it first appears in. With music playing the reels redraw
+        // the window anyway; on a still screen nothing would, so the picture
+        // stayed blank. Redraw a few times right after anything changes.
+        let settle = if self.redraw_until.is_some_and(|t| Instant::now() < t) {
+            cosmic::iced::time::every(SETTLE_TICK).map(|_| Message::Redraw)
         } else {
             Subscription::none()
         };
 
         Subscription::batch(vec![
             ticks,
-            jcard,
+            settle,
             keys,
             Subscription::run(mpris_commands),
             Subscription::run_with(self.art_gen, |_: &u64| art_results()),
@@ -838,6 +846,9 @@ impl Application for App {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
+        if !matches!(message, Message::Tick(_) | Message::Redraw) {
+            self.redraw_until = Some(Instant::now() + SETTLE);
+        }
         // While an animation owns the screen, user input (clicks, keys, media
         // keys) is dropped so it can't load or unload a tape mid-animation.
         if self.screen.animating()
@@ -1115,7 +1126,11 @@ impl Application for App {
                     self.refresh_jcard();
                 }
             }
-            Message::Redraw => {}
+            Message::Redraw => {
+                if self.redraw_until.is_some_and(|t| Instant::now() >= t) {
+                    self.redraw_until = None;
+                }
+            }
             Message::CloseJCard => {
                 self.screen = Screen::Rack;
                 self.jcard_img = None;
