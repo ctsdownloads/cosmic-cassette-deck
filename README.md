@@ -127,11 +127,11 @@ The app always uses its dark look, so it stays readable whatever theme your desk
 
 ### Add your music
 
-Click **Open Folder** and point it at your music directory. The app scans it recursively, reads the tags, groups the files into album cassettes, and fills the rack. Click a cassette to play it.
+Click **Folders**, then **Add folder…**, and point it at your music directory. The app scans it recursively, reads the tags, groups the files into album cassettes, and fills the rack. Click a cassette to play it.
 
 Files are grouped into albums by their Album Artist (or Artist, when there is no Album Artist) and Album tags (read with lofty), so each album is one cassette no matter how many songs it holds, and its tracks play in track-number order (disc by disc on multi-disc albums). If the same song is in your folder twice, the cassette plays it once. Tags that differ only in capital letters, extra spaces, or curly versus straight quotes still count as the same album, so one song tagged "...And Justice For All" stays on the same cassette as the rest; the cassette shows the spelling most of its songs use. Files with no tags fall back to their `Artist - Title` filename, and each becomes its own single. Formats: MP3, FLAC, M4A/AAC, and WAV.
 
-Your folder is remembered, so this is a one-time step. To point it somewhere else, click **Open Folder** again.
+Your folders are remembered, so this is a one-time step. Add as many folders as you like; an album spread across two folders is still one cassette. **Remove** takes a folder off the rack, and **Rescan** picks up songs you added or deleted since, without restarting. The tape in the deck keeps playing through a rescan.
 
 ### Album covers
 
@@ -169,7 +169,7 @@ Playing a cassette starts at its first song and runs straight through the album,
 
 ### Where your settings live
 
-State is saved to `~/.config/cosmic-cassette-deck/state`: music folder, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume. Downloaded covers and the covers you picked are kept in `~/.cache/cosmic-cassette-deck/covers` (for the Flatpak, `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/covers`).
+State is saved to `~/.config/cosmic-cassette-deck/state`: music folders, volume, current colour skin, chosen and added backgrounds, whether the Player wallpaper is on, and the last track and position for resume. Downloaded covers and the covers you picked are kept in `~/.cache/cosmic-cassette-deck/covers` (for the Flatpak, `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/covers`).
 
 ## Building from source (for hacking on it)
 

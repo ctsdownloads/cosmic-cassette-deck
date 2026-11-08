@@ -53,9 +53,10 @@ const FOLDER_COVER_EXTS: &[&str] = &["jpg", "jpeg", "png"];
 
 const AUDIO_EXTS: &[&str] = &["mp3", "flac", "m4a", "wav"];
 
-/// Recursively scan `dir` for audio files and group them into albums.
+/// Recursively scan every folder in `dirs` for audio files and group them
+/// into albums (an album split across folders is still one cassette).
 /// Returns (albums, count of matching files that could not be parsed).
-pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
+pub fn scan(dirs: Vec<PathBuf>) -> (Vec<Album>, usize) {
     // Keyed by (artist, album) so two artists with an album named
     // "Greatest Hits" don't collide.
     let mut albums: BTreeMap<(String, String), Album> = BTreeMap::new();
@@ -71,9 +72,9 @@ pub fn scan(dir: PathBuf) -> (Vec<Album>, usize) {
         BTreeMap::new();
     let mut skipped: usize = 0;
 
-    for entry in walkdir::WalkDir::new(&dir)
-        .follow_links(true)
-        .into_iter()
+    for entry in dirs
+        .iter()
+        .flat_map(|dir| walkdir::WalkDir::new(dir).follow_links(true))
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .filter(|e| {

@@ -115,6 +115,11 @@ pub enum Message {
     Tick(Instant),
     OpenFolder,
     FolderChosen(Option<PathBuf>),
+    /// Show or hide the Folders card (the music folders and Rescan).
+    ToggleFolders,
+    RemoveFolder(usize),
+    /// Read the music folders again, for songs added or removed since.
+    Rescan,
     LibraryLoaded { albums: Vec<Album>, skipped: usize },
     ShowRack,
     ShowPlayer,
@@ -160,6 +165,8 @@ pub struct App {
     scanning: bool,
     /// About card visible (a full-view panel over the current screen).
     show_about: bool,
+    /// Folders card visible (a full-view panel, like About).
+    show_folders: bool,
 
     /// Currently loaded (album_idx, track_idx), if a tape is in the deck.
     current: Option<(usize, usize)>,
@@ -237,7 +244,8 @@ pub struct App {
     skip_anim: Option<(i8, f32)>,
 
     // Persistence / UX
-    music_dir: Option<PathBuf>,
+    /// Every music folder the rack is filled from.
+    music_dirs: Vec<PathBuf>,
     volume: f32,
     /// (track path, position secs) restored from the last session.
     pending_resume: Option<(PathBuf, f32)>,
@@ -598,8 +606,10 @@ impl App {
             let _ = std::fs::create_dir_all(parent);
         }
         let mut out = String::new();
-        if let Some(dir) = &self.music_dir {
-            out.push_str(&format!("music_dir={}\n", dir.display()));
+        if !self.music_dirs.is_empty() {
+            let dirs: Vec<String> =
+                self.music_dirs.iter().map(|d| d.display().to_string()).collect();
+            out.push_str(&format!("music_dirs={}\n", dirs.join("\t")));
         }
         out.push_str(&format!("volume={}\n", self.volume));
         out.push_str(&format!("skin={}\n", self.skins[self.skin_idx].spec.id));
@@ -648,11 +658,19 @@ impl Application for App {
             .unwrap_or(0.85);
         let _ = audio_tx.send(AudioCmd::Volume(volume));
 
-        let music_dir = state
-            .get("music_dir")
-            .map(PathBuf::from)
-            .filter(|d| d.is_dir())
-            .or_else(load_music_dir_legacy);
+        // Saved folders are kept even when one is missing right now (an
+        // unplugged drive, say), so it comes back when it does. Older
+        // versions saved a single `music_dir`.
+        let music_dirs: Vec<PathBuf> = match state.get("music_dirs") {
+            Some(list) => list.split('\t').filter(|s| !s.is_empty()).map(PathBuf::from).collect(),
+            None => state
+                .get("music_dir")
+                .map(PathBuf::from)
+                .filter(|d| d.is_dir())
+                .or_else(load_music_dir_legacy)
+                .into_iter()
+                .collect(),
+        };
 
         let skins = load_skins();
         let skin_idx = state
@@ -712,6 +730,7 @@ impl Application for App {
             library: Vec::new(),
             scanning: false,
             show_about: false,
+            show_folders: false,
             current: None,
             audio_tx,
             status,
@@ -750,7 +769,7 @@ impl Application for App {
             wind_resume: false,
             skip_mode: false,
             skip_anim: None,
-            music_dir: music_dir.clone(),
+            music_dirs: music_dirs.clone(),
             volume,
             pending_resume,
             last_save: Instant::now(),
@@ -759,12 +778,11 @@ impl Application for App {
 
         // Remembered library: auto-scan on startup so the rack is ready
         // without clicking through the folder picker every launch.
-        let startup = match music_dir {
-            Some(dir) => {
-                app.scanning = true;
-                scan_task(dir)
-            }
-            None => Task::none(),
+        let startup = if music_dirs.is_empty() {
+            Task::none()
+        } else {
+            app.scanning = true;
+            scan_task(music_dirs)
         };
         (app, startup)
     }
@@ -875,6 +893,9 @@ impl Application for App {
                     | Message::CycleSkin
                     | Message::ToggleBackdrop
                     | Message::OpenFolder
+                    | Message::ToggleFolders
+                    | Message::RemoveFolder(_)
+                    | Message::Rescan
                     | Message::Mpris(_)
             )
         {
@@ -1025,15 +1046,32 @@ impl Application for App {
             }
 
             Message::FolderChosen(Some(dir)) => {
-                self.music_dir = Some(dir.clone());
-                self.save_state();
+                if !self.music_dirs.contains(&dir) {
+                    self.music_dirs.push(dir);
+                    self.save_state();
+                }
+                return self.update(Message::Rescan);
+            }
+            Message::RemoveFolder(i) => {
+                if i < self.music_dirs.len() {
+                    self.music_dirs.remove(i);
+                    self.save_state();
+                    return self.update(Message::Rescan);
+                }
+            }
+            Message::ToggleFolders => self.show_folders = !self.show_folders,
+            Message::Rescan => {
                 self.scanning = true;
-                return scan_task(dir);
+                return scan_task(self.music_dirs.clone());
             }
             Message::FolderChosen(None) => {}
 
             Message::LibraryLoaded { albums, skipped } => {
                 self.scanning = false;
+                // A rescan keeps the tape in the deck playing, and the rack on
+                // the same album, when they are still in the new library.
+                let playing_path = self.current_track().map(|(_, t)| t.path.clone());
+                let browsed = self.library.get(self.browse_index).map(album_art_key);
                 self.library = albums;
                 // Covers are stored by rack position: clear the old library's,
                 // or a new folder's albums would show them.
@@ -1047,6 +1085,24 @@ impl Application for App {
                         self.set_cover(idx, bytes);
                     }
                 }
+                self.notice = (skipped > 0)
+                    .then(|| format!("Skipped {skipped} unreadable file(s) during scan"));
+                self.browse_index = browsed
+                    .and_then(|k| self.library.iter().position(|a| album_art_key(a) == k))
+                    .unwrap_or(0);
+                if let Some(found) = playing_path.and_then(|p| find_track(&self.library, &p)) {
+                    self.current = Some(found);
+                    self.refresh_backdrop();
+                    if let Screen::JCard { album, .. } = self.screen {
+                        if album >= self.library.len() {
+                            self.screen = Screen::Rack;
+                        }
+                    }
+                    self.refresh_jcard();
+                    self.refresh_rack_overlay();
+                    self.start_art_scrape();
+                    return Task::none();
+                }
                 let _ = self.audio_tx.send(AudioCmd::Stop);
                 self.current = None;
                 self.player_backdrop = None;
@@ -1054,9 +1110,6 @@ impl Application for App {
                 self.playing = false;
                 self.stopped = false;
                 self.screen = Screen::Rack;
-                self.browse_index = 0;
-                self.notice = (skipped > 0)
-                    .then(|| format!("Skipped {skipped} unreadable file(s) during scan"));
 
                 // Session resume: reload last tape, paused where it was.
                 if let Some((path, pos)) = self.pending_resume.take() {
@@ -1130,7 +1183,9 @@ impl Application for App {
                 }
             }
             Message::Escape => {
-                if self.show_about {
+                if self.show_folders {
+                    self.show_folders = false;
+                } else if self.show_about {
                     self.show_about = false;
                 } else if matches!(self.screen, Screen::JCard { .. }) {
                     return self.update(Message::CloseJCard);
@@ -1398,6 +1453,9 @@ impl Application for App {
     }
 
     fn view(&self) -> Element<'_, Message> {
+        if self.show_folders {
+            return with_page_bg(self.folders_view());
+        }
         if self.show_about {
             return with_page_bg(self.about_view());
         }
@@ -1473,6 +1531,53 @@ impl Application for App {
 
 impl App {
     /// Full-view About card: app name, version, and a link to the repo.
+    /// The music folders the rack is filled from, with Add, Remove and
+    /// Rescan.
+    fn folders_view(&self) -> Element<'_, Message> {
+        let mut list = widget::column::with_capacity(self.music_dirs.len() + 1).spacing(8);
+        if self.music_dirs.is_empty() {
+            list = list.push(text::body("No music folders yet."));
+        }
+        for (i, dir) in self.music_dirs.iter().enumerate() {
+            let mut name = dir.display().to_string();
+            if !dir.is_dir() {
+                name.push_str("  (not found)");
+            }
+            list = list.push(
+                widget::row::with_children(vec![
+                    text::body(name).width(Length::Fill).into(),
+                    button::standard("Remove").on_press(Message::RemoveFolder(i)).into(),
+                ])
+                .spacing(12)
+                .align_y(Alignment::Center),
+            );
+        }
+        let status = if self.scanning {
+            "Scanning your tapes…".to_string()
+        } else {
+            format!("{} tapes on the rack", self.library.len())
+        };
+        let card = widget::column::with_children(vec![
+            text::title2("Music folders").into(),
+            list.into(),
+            text::caption(status).into(),
+            widget::row::with_children(vec![
+                button::suggested("Add folder…").on_press(Message::OpenFolder).into(),
+                button::standard("Rescan")
+                    .on_press_maybe((!self.scanning && !self.music_dirs.is_empty()).then_some(Message::Rescan))
+                    .into(),
+                button::standard("Close").on_press(Message::ToggleFolders).into(),
+            ])
+            .spacing(12)
+            .align_y(Alignment::Center)
+            .into(),
+        ])
+        .spacing(16)
+        .align_x(Alignment::Center)
+        .max_width(640);
+        container(card).center(Length::Fill).padding(24).into()
+    }
+
     fn about_view(&self) -> Element<'_, Message> {
         let card = widget::column::with_children(vec![
             text::title2("Cassette Deck").into(),
@@ -1553,7 +1658,7 @@ impl App {
     fn deck_nav(&self) -> Element<'_, Message> {
         let mut nav_buttons: Vec<Element<Message>> = vec![
             button::suggested("Music Rack").on_press(Message::ShowRack).into(),
-            button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
+            button::suggested("Folders").on_press(Message::ToggleFolders).into(),
             button::suggested("About").on_press(Message::ToggleAbout).into(),
             button::suggested(if self.show_backdrop {
                 "Wallpaper: On"
@@ -1676,7 +1781,7 @@ let nav = self.deck_nav();
             button::standard("🗑 Remove").on_press(Message::RemoveBackground).into(),
             button::standard("Player").on_press(Message::ShowPlayer).into(),
             button::standard("About").on_press(Message::ToggleAbout).into(),
-            button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
+            button::suggested("Folders").on_press(Message::ToggleFolders).into(),
         ])
         .spacing(12)
         .align_y(Alignment::Center);
@@ -1696,7 +1801,7 @@ let nav = self.deck_nav();
                     text::title4("The rack is empty").into(),
                     text::body("Open a folder of music (MP3, FLAC, M4A, WAV) to fill the rack.")
                         .into(),
-                    button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
+                    button::suggested("Add a folder…").on_press(Message::OpenFolder).into(),
                 ])
                 .spacing(12)
                 .align_x(Alignment::Center),
@@ -1833,7 +1938,7 @@ let nav = self.deck_nav();
             button::suggested("Player").on_press(Message::ShowPlayer).into(),
             button::suggested("Music Rack").on_press(Message::ShowRack).into(),
             button::suggested("About").on_press(Message::ToggleAbout).into(),
-            button::suggested("Open Folder").on_press(Message::OpenFolder).into(),
+            button::suggested("Folders").on_press(Message::ToggleFolders).into(),
         ])
         .spacing(12)
         .align_y(Alignment::Center);
@@ -2063,9 +2168,9 @@ fn find_track(library: &[Album], path: &Path) -> Option<(usize, usize)> {
     })
 }
 
-fn scan_task(dir: PathBuf) -> Task<Message> {
+fn scan_task(dirs: Vec<PathBuf>) -> Task<Message> {
     cosmic::task::future(async move {
-        let (albums, skipped) = tokio::task::spawn_blocking(move || library::scan(dir))
+        let (albums, skipped) = tokio::task::spawn_blocking(move || library::scan(dirs))
             .await
             .unwrap_or_default();
         Message::LibraryLoaded { albums, skipped }
