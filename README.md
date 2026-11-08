@@ -149,7 +149,7 @@ Your choice applies to the rack, the album screen, and the insert animation, and
 - **Wallpaper: On / Off** fills the space around the deck with the playing album's cover art. Off by default, and remembered. This is separate from the room background above.
 - **Music Rack** goes back to the shelf. **About** shows the version and a link to the project.
 
-Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf, and after the last one starts over from the first. To move between songs use **Prev** and **Next**, or slide the FUNCT switch on the deck so fast-forward and rewind step from track to track instead of winding the tape. The label always shows the song that is playing.
+Playing a cassette starts at its first song and runs straight through the album, then rolls on to the next cassette on the shelf, and after the last one starts over from the first. To move between songs, click **FUNCT** on the deck so fast-forward and rewind skip to the next or previous song instead of winding the tape; click it again to go back to winding. Your keyboard's media keys and your desktop's player controls also skip songs. The label always shows the song that is playing.
 
 ### Where your settings live
 
