@@ -1883,10 +1883,22 @@ let nav = self.deck_nav();
             format!("{} / {}", self.browse_index + 1, total)
         };
 
-        let controls = widget::column::with_capacity(3)
+        // Mark the cassette that is in the deck.
+        let in_deck = match self.current {
+            Some((a, _)) if a == self.browse_index && !self.stopped => {
+                Some(if self.playing { "♪ In the deck, playing" } else { "♪ In the deck, paused" })
+            }
+            Some((a, _)) if a == self.browse_index => Some("♪ In the deck, stopped"),
+            _ => None,
+        };
+        let mut controls = widget::column::with_capacity(4)
             .spacing(8)
             .align_x(Alignment::Center)
-            .push(text::title4(title))
+            .push(text::title4(title));
+        if let Some(note) = in_deck {
+            controls = controls.push(text::body(note));
+        }
+        let controls = controls
             .push(text::caption(counter))
             .push(
                 widget::row::with_capacity(3)
