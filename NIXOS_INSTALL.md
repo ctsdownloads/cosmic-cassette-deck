@@ -22,7 +22,7 @@ One command, no config to edit:
 nix profile add github:ctsdownloads/cosmic-cassette-deck
 ```
 
-**Older Nix:** before `add`, the command was `nix profile install`. Use that if `add` isn't recognised.
+**Older Nix:** before `add`, the command was `nix profile install`. Use that if `add` isn't recognized.
 
 It shows up in your app menu as **Cassette Deck**.
 

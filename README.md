@@ -19,7 +19,7 @@ The deck is a real photograph. The reels spin, the keys press down, and every al
 - **Lyrics:** a lyric sheet for the song that's playing, when its lyrics can be found.
 - **Headphone plug:** click it to pull it out and mute the music. Click it again to plug it back in.
 - **Cassette Rack:** flip through your albums like a shelf of tapes, with their covers, sorted by artist. It follows the tape that's playing and marks it "♪ In the deck".
-- **Five colours:** Denim Belt, Red, Blue, Black and White.
+- **Five colors:** Denim Belt, Red, Blue, Black and White.
 - **Your own backgrounds:** swap the room behind the rack, or add a picture of your own.
 - **Album wallpaper:** optionally fill the space around the deck with the playing album's cover.
 - **Tape sounds:** the keys click, the case snaps open, the tape rattles in and clunks into place, fast-forward whirrs, and a tape clunks to a stop at its end.
@@ -49,7 +49,7 @@ The deck is a real photograph. The reels spin, the keys press down, and every al
 
 ![Headphone plug pulled out](docs/unplugged.png)
 
-**Colours:** the Walkman button on the Player cycles through the five colours. The deck at the top of this page is Denim Belt. This one is Red.
+**Colors:** the Walkman button on the Player cycles through the five colors. The deck at the top of this page is Denim Belt. This one is Red.
 
 ![Red skin](docs/player-red.png)
 
@@ -181,7 +181,7 @@ Your choice is used on the rack, the J-card and the tape loading animation, and 
 - **Play, Pause, Stop:** press Stop again while stopped to eject the tape and go back to the rack.
 - **Fast-forward and rewind:** hold to wind the tape.
 - **FUNCT:** click it so fast-forward and rewind skip songs instead of winding. Click again to go back to winding.
-- **Walkman:** cycles the five colours.
+- **Walkman:** cycles the five colors.
 - **Wallpaper:** fills the space around the deck with the album cover. Off unless you turn it on.
 - **Tape label:** click it to open that tape's J-card.
 - **Headphone plug:** click it to pull it out and mute the music. Click it again to plug it back in.
@@ -206,7 +206,7 @@ A cassette plays from its first song to its last, then moves on to the next cass
 
 | What | Where |
 |---|---|
-| **Settings:** folders, window size, volume, colour, backgrounds, wallpaper, last song and position | `~/.config/cosmic-cassette-deck/state` |
+| **Settings:** folders, window size, volume, color, backgrounds, wallpaper, last song and position | `~/.config/cosmic-cassette-deck/state` |
 | **Covers:** downloaded and picked | `~/.cache/cosmic-cassette-deck/covers` |
 | **Covers in the Flatpak** | `~/.var/app/io.github.ctsdownloads.CosmicCassetteDeck/cache/cosmic-cassette-deck/covers` |
 | **Lyrics from LRCLIB** | `~/.cache/cosmic-cassette-deck/lyrics` |
@@ -284,7 +284,7 @@ Then see [Using it](#using-it) to add your music.
 
 ## Credits
 
-**Deck art:** in `assets/`. The colours are recoloured versions of the same deck photo.
+**Deck art:** in `assets/`. The colors are recolored versions of the same deck photo.
 
 **Font:** the J-card and the lyric sheet are typed in [Courier Prime](https://github.com/quoteunquoteapps/CourierPrime) (`assets/CourierPrime-*.ttf`), under the SIL Open Font License 1.1. The license is in `assets/CourierPrime-OFL.txt`.
 
