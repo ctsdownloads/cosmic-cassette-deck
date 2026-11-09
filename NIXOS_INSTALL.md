@@ -1,8 +1,8 @@
 # Installing on NixOS
 
-Three ways in, fastest first. All three compile the app from source - there is no binary cache for this repo, so the first build pulls in libcosmic and takes several minutes. After that it is cached in your Nix store.
+There are three ways to install it, fastest first. All three build the app from source, because there's no binary cache for this repo. The first build also builds libcosmic and takes several minutes. After that it's kept in your Nix store.
 
-All of these need flakes enabled (`experimental-features = nix-command flakes`).
+**Flakes needed:** all three need flakes turned on (`experimental-features = nix-command flakes`).
 
 ## Just try it
 
@@ -12,27 +12,33 @@ Runs the app without installing anything:
 nix run github:ctsdownloads/cosmic-cassette-deck
 ```
 
-Nothing is added to your system, nothing appears in your app menu. Good for a look before you commit.
+Nothing is added to your system and nothing shows up in your app menu.
 
 ## Install it for your user
 
-One command, no config edits:
+One command, no config to edit:
 
 ```sh
-nix profile install github:ctsdownloads/cosmic-cassette-deck
+nix profile add github:ctsdownloads/cosmic-cassette-deck
 ```
 
-It lands in your app menu as **Cassette Deck**, same as any other app. Update it with `nix profile upgrade`, list what you have with `nix profile list`, and remove it with `nix profile remove` plus the name from that list.
+**Older Nix:** before `add`, the command was `nix profile install`. Use that if `add` isn't recognised.
 
-The catch: this is **not declarative**. It lives in your user profile, not in your system configuration, so it is not in git and won't come back if you rebuild a machine from your flake. If that matters to you, use the next section instead.
+It shows up in your app menu as **Cassette Deck**.
+
+- **Update:** `nix profile upgrade --all`
+- **List what you have:** `nix profile list`
+- **Remove:** `nix profile remove` plus the name from that list
+
+**Not declarative:** it lives in your user profile, not your system configuration. It isn't in git and won't come back when you rebuild a machine from your flake. If that matters to you, use the next section.
 
 ## Install it declaratively (the NixOS way)
 
-Puts the app in your system configuration, so it is versioned with the rest of your setup, applies to every user, and survives a rebuild from scratch. This is what most NixOS users will want.
+This puts the app in your system configuration. It's versioned with the rest of your setup, applies to every user, and survives a rebuild from scratch. Most NixOS users will want this.
 
 ### 1. Add it as a flake input
 
-In your system `flake.nix`, alongside your other inputs:
+In your system `flake.nix`, next to your other inputs:
 
 ```nix
 cosmic-cassette-deck = {
@@ -41,17 +47,17 @@ cosmic-cassette-deck = {
 };
 ```
 
-For local hacking, point at a checkout instead: `url = "path:/path/to/cosmic-cassette-deck";`.
+**Working on the code?** Point at your checkout instead: `url = "path:/path/to/cosmic-cassette-deck";`.
 
-### 2. Enable it
+### 2. Turn it on
 
-Wire it up in `flake.nix` itself, where the input is already in scope. Take it as an argument to `outputs`:
+Do this in `flake.nix` itself, where the input is already available. Add it to the arguments of `outputs`:
 
 ```nix
 outputs = { self, nixpkgs, cosmic-cassette-deck, ... }:
 ```
 
-then add two entries to your host's `modules` list:
+Then add two entries to your host's `modules` list:
 
 ```nix
 modules = [
@@ -61,9 +67,9 @@ modules = [
 ];
 ```
 
-That's it - nothing to add to `configuration.nix`.
+Nothing needs adding to `configuration.nix`.
 
-If you would rather skip the module and just install the package, add this to the same `modules` list instead:
+**Just the package, no module:** add this to the same `modules` list instead:
 
 ```nix
 ({ pkgs, ... }: {
@@ -73,9 +79,9 @@ If you would rather skip the module and just install the package, add this to th
 })
 ```
 
-#### Putting it in configuration.nix instead
+#### In configuration.nix instead
 
-This also works, but only if your flake already passes its inputs down to your modules - that is, your `nixpkgs.lib.nixosSystem` call includes `specialArgs = { inherit inputs; };`. Without it, `inputs` is not a module argument and the rebuild fails with `error: undefined variable 'inputs'`. If you have it:
+This works only if your flake passes its inputs down to your modules, meaning your `nixpkgs.lib.nixosSystem` call has `specialArgs = { inherit inputs; };`. Without it, the rebuild fails with `error: undefined variable 'inputs'`. If you have it:
 
 ```nix
 imports = [ inputs.cosmic-cassette-deck.nixosModules.default ];
@@ -84,26 +90,23 @@ services.cosmic-cassette-deck.enable = true;
 
 ### 3. Rebuild
 
-Rebuild the way you normally do, pointing at wherever your system flake lives:
+Rebuild the way you normally do, pointing at your system flake:
 
 ```sh
 sudo nixos-rebuild switch --flake /path/to/your/flake
 ```
 
-Nix picks the configuration matching your hostname. If your `nixosConfigurations` attribute is named something else, name it explicitly: `--flake /path/to/your/flake#that-name`.
+Nix picks the configuration that matches your hostname. If yours has a different name, add it: `--flake /path/to/your/flake#that-name`.
 
-Dependencies come from the committed `Cargo.lock` (`cargoLock.lockFile`), so there is no `cargoHash` to chase. If you fork and change dependencies, regenerate the lock with `cargo generate-lockfile` (inside `nix develop`) and commit it.
-
-To update later, bump the input and rebuild: `nix flake update cosmic-cassette-deck`.
+**Update later:** `nix flake update cosmic-cassette-deck`, then rebuild.
 
 ## Launch it
 
-The binary installs into the Nix store and is wrapped with everything it needs to find its libraries and icons, so there is no PATH or environment setup to do. Open it from the COSMIC app library, or your app menu, as "Cassette Deck".
+Open **Cassette Deck** from the COSMIC app library or your app menu. There's no PATH or environment setup to do. The app is wrapped with everything it needs to find its libraries and icons.
 
-## Notes
+## Good to know
 
-- Builds for `x86_64-linux` and `aarch64-linux`.
-- The desktop entry is a standard application launcher (`Type=Application`, audio/player categories).
-- One binary is produced, `cosmic-cassette-deck`; the app menu launches it from its Nix store path.
-- Outside COSMIC (GNOME, KDE Plasma, and the rest), the wrapper adds the Adwaita icon theme to `XDG_DATA_DIRS`, so the window's minimize, maximize, and close buttons render. The COSMIC icon theme those buttons normally come from isn't installed on other desktops, and without this they draw blank.
-- `nix run` and `nix profile install` work on any distro with Nix installed, not just NixOS. The declarative route is NixOS-only.
+- **Chips:** builds for `x86_64-linux` and `aarch64-linux`. ARM hasn't been tested.
+- **Other desktops:** on GNOME, KDE Plasma and the rest, the Adwaita icons are added for you, so the window's minimize, maximize and close buttons don't show up blank.
+- **Other distros:** `nix run` and `nix profile add` work on any distro with Nix installed. The declarative route is NixOS only.
+- **Changing dependencies:** they come from the committed `Cargo.lock`, so there's no `cargoHash` to update. If you change dependencies in a fork, run `cargo generate-lockfile` inside `nix develop` and commit the new `Cargo.lock`.
