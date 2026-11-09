@@ -5,7 +5,7 @@
 //! polls status on Tick, and renders the photographic deck (cassette.rs)
 //! with the pre-rasterized label (label.rs).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -198,6 +198,8 @@ pub enum Message {
     ArtLoaded(ArtResult),
     PickCover(usize),
     CoverChosen(usize, Option<PathBuf>),
+    /// Drop the cover picked for this album and show its own again.
+    ResetCover(usize),
     Mpris(MprisCmd),
     ToggleAbout,
     OpenRepo,
@@ -242,6 +244,8 @@ pub struct App {
     browse_index: usize,
     /// Raw cover bytes per album index (scraped), for case compositing.
     cover_bytes: std::collections::HashMap<usize, std::sync::Arc<Vec<u8>>>,
+    /// Albums (by album_art_key) with a cover picked with Change cover.
+    picked_covers: HashSet<String>,
     /// Bumped for each cover lookup, so a fresh delivery stream starts for it.
     art_gen: u64,
     /// Composed case sprites for the current fan window (centre first).
@@ -498,6 +502,12 @@ impl App {
         let bytes = std::sync::Arc::new(bytes);
         self.cover_bytes.insert(idx, bytes.clone());
         self.library[idx].art = Some(cosmic::widget::image::Handle::from_bytes((*bytes).clone()));
+        self.cover_changed(idx);
+    }
+
+    /// Album `idx`'s cover changed: redraw the wallpaper if it's the tape in
+    /// the deck, and the rack if the album is in view.
+    fn cover_changed(&mut self, idx: usize) {
         if self.current.map(|(a, _)| a) == Some(idx) {
             self.refresh_backdrop();
         }
@@ -860,6 +870,7 @@ impl Application for App {
             case_png: std::sync::Arc::new(CASE_T_PNG.to_vec()),
             browse_index: 0,
             cover_bytes: std::collections::HashMap::new(),
+            picked_covers: HashSet::new(),
             art_gen: 0,
             fan_cases: Vec::new(),
             label_img: None,
@@ -1344,12 +1355,15 @@ impl App {
                 // Covers are stored by rack position: clear the old library's,
                 // or a new folder's albums would show them.
                 self.cover_bytes.clear();
+                self.picked_covers.clear();
                 // Covers the user picked win over every other source.
                 for idx in 0..self.library.len() {
-                    let picked = artscrape::user_cover_path(&album_art_key(&self.library[idx]))
+                    let key = album_art_key(&self.library[idx]);
+                    let picked = artscrape::user_cover_path(&key)
                         .and_then(|p| std::fs::read(p).ok())
                         .filter(|b| !b.is_empty());
                     if let Some(bytes) = picked {
+                        self.picked_covers.insert(key);
                         self.set_cover(idx, bytes);
                     }
                 }
@@ -1741,6 +1755,7 @@ impl App {
                                 self.notice = Some(format!("Couldn't save cover: {e}"));
                             }
                         }
+                        self.picked_covers.insert(key);
                         self.set_cover(idx, bytes);
                     }
                     Ok(_) => self.notice = Some("That file isn't an image the app can read".into()),
@@ -1748,6 +1763,32 @@ impl App {
                 }
             }
             Message::CoverChosen(_, None) => {}
+            Message::ResetCover(idx) => {
+                let Some(album) = self.library.get(idx) else {
+                    return Task::none();
+                };
+                let key = album_art_key(album);
+                if let Some(path) = artscrape::user_cover_path(&key) {
+                    if let Err(e) = std::fs::remove_file(&path) {
+                        if e.kind() != std::io::ErrorKind::NotFound {
+                            self.notice = Some(format!("Couldn't reset cover: {e}"));
+                            return Task::none();
+                        }
+                    }
+                }
+                self.picked_covers.remove(&key);
+                self.cover_bytes.remove(&idx);
+                // The album's own cover (from its songs or folder), or else
+                // the downloaded one, which comes back from the disk cache.
+                self.library[idx].art = self.library[idx]
+                    .art_bytes
+                    .as_ref()
+                    .map(|b| cosmic::widget::image::Handle::from_bytes((**b).clone()));
+                if self.library[idx].art.is_none() {
+                    self.start_art_scrape();
+                }
+                self.cover_changed(idx);
+            }
 
             Message::RemoveBackground => {
                 // Only user-added backgrounds can be removed; built-ins stay.
@@ -2212,7 +2253,15 @@ let nav = self.deck_nav();
                         (!self.library.is_empty()).then_some(Message::PickCover(self.browse_index)),
                     )
                     .into(),
-            ]));
+            ]
+            .into_iter()
+            .chain(
+                self.library
+                    .get(self.browse_index)
+                    .filter(|a| self.picked_covers.contains(&album_art_key(a)))
+                    .map(|_| button::standard("Reset cover").on_press(Message::ResetCover(self.browse_index)).into()),
+            )
+            .collect()));
 
         // Canvas takes the flexible space; controls sit in a fixed footer that
         // is always visible (the earlier bug: Fill canvas pushed nav off-screen).
