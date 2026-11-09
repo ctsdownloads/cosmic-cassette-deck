@@ -86,6 +86,11 @@ pub struct SkinSpec {
     pub window: (f32, f32, f32, f32),
 }
 
+/// The headphone plug: where a click lands on it, and where the picture of
+/// it pulled out goes (deck-photo pixels, the same on every colour).
+const PLUG_HIT: (f32, f32, f32, f32) = (668.0, 22.0, 720.0, 146.0);
+const UNPLUGGED: (f32, f32, f32, f32) = (610.0, 0.0, 820.0, 152.0);
+
 /// A latched key (Play while the tape plays) rests this far down, as a
 /// fraction of full travel: it catches a little above where a full press
 /// bottoms out, like a real deck's latch.
@@ -169,6 +174,9 @@ pub struct KeyArt {
 pub struct LoadedSkin {
     pub spec: &'static SkinSpec,
     pub body: image::Handle,
+    /// The patch of body.png around the headphone plug, with the plug
+    /// pulled up out of its jack (drawn at UNPLUGGED).
+    pub unplugged: image::Handle,
     /// body.png as embedded, for making the chewed-tape version of it.
     pub body_png: &'static [u8],
     /// Empty deck (open walkman) for the load + case-open animations.
@@ -256,6 +264,9 @@ pub fn load_skins() -> Vec<LoadedSkin> {
             LoadedSkin {
                 spec: $spec,
                 body: image::Handle::from_bytes(body_png.to_vec()),
+                unplugged: image::Handle::from_bytes(
+                    include_bytes!(concat!("../assets/skins/", $dir, "/unplugged.png")).to_vec(),
+                ),
                 body_png,
                 empty: image::Handle::from_bytes(
                     include_bytes!(concat!("../assets/skins/", $dir, "/empty.png")).to_vec(),
@@ -326,6 +337,8 @@ pub struct DeckState {
     pressed: Option<usize>,
     /// True while a press landed on the label strip (pending release).
     label_armed: bool,
+    /// True while a press landed on the headphone plug (pending release).
+    plug_armed: bool,
     /// How far each control has moved, 0.0 (rest) to 1.0 (fully pressed /
     /// slid). Eased toward its target each frame so keys travel.
     depth: [f32; MAX_BUTTONS],
@@ -353,6 +366,11 @@ pub struct CassetteScene<'a, Message> {
     pub on_toggle_mode: Message,
     /// Clicking the cassette's label strip opens the album's art screen.
     pub on_label_click: Message,
+    /// Clicking the headphone plug pulls it out (muting the music) or
+    /// pushes it back in.
+    pub on_plug: Message,
+    /// The headphone plug is pulled out.
+    pub unplugged: bool,
     pub skip_mode: bool,
     /// Fill the letterbox with the charcoal field. False when a backdrop sits
     /// behind the deck -- then leave it transparent so the backdrop shows.
@@ -461,6 +479,7 @@ impl<'a, Message: Clone> canvas::Program<Message, cosmic::Theme, cosmic::Rendere
             if let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) = event {
                 state.pressed = None;
                 state.label_armed = false;
+                state.plug_armed = false;
             }
             return None;
         }
@@ -489,8 +508,21 @@ impl<'a, Message: Clone> canvas::Program<Message, cosmic::Theme, cosmic::Rendere
                     state.label_armed = true;
                     return Some(Action::request_redraw().and_capture());
                 }
+                if map.rect(PLUG_HIT).contains(pos) {
+                    state.plug_armed = true;
+                    return Some(Action::request_redraw().and_capture());
+                }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                // Plug click: released on the plug after arming.
+                if state.plug_armed {
+                    state.plug_armed = false;
+                    let on_plug = cursor.position_in(bounds).is_some_and(|p| map.rect(PLUG_HIT).contains(p));
+                    if on_plug {
+                        return Some(Action::publish(self.on_plug.clone()).and_capture());
+                    }
+                    return Some(Action::request_redraw());
+                }
                 // Label click: released inside the label strip after arming.
                 if state.label_armed {
                     state.label_armed = false;
@@ -543,8 +575,11 @@ impl<'a, Message: Clone> canvas::Program<Message, cosmic::Theme, cosmic::Rendere
         }
         let map = SkinMap::new(self.skin.spec, bounds.size());
         if let Some(p) = cursor.position_in(bounds) {
-            // Transport buttons or the clickable label strip.
-            if self.hit(&map, p).is_some() || map.rect(self.skin.spec.label).contains(p) {
+            // Transport buttons, the clickable label strip, or the plug.
+            if self.hit(&map, p).is_some()
+                || map.rect(self.skin.spec.label).contains(p)
+                || map.rect(PLUG_HIT).contains(p)
+            {
                 return mouse::Interaction::Pointer;
             }
         }
@@ -604,6 +639,13 @@ impl<'a, Message: Clone> canvas::Program<Message, cosmic::Theme, cosmic::Rendere
                     f.draw_image(map.rect(eaten.tangle_rect), canvas::Image::new(eaten.tangle.clone()));
                 });
             }
+        }
+        if self.unplugged {
+            let map = SkinMap::new(spec, bounds.size());
+            frame.with_save(|f| {
+                f.translate(Vector::new(self.nudge.0 * map.s, self.nudge.1 * map.s));
+                f.draw_image(map.rect(UNPLUGGED), canvas::Image::new(self.skin.unplugged.clone()));
+            });
         }
 
         vec![frame.into_geometry()]

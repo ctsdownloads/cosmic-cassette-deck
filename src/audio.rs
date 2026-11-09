@@ -64,6 +64,10 @@ pub enum Sfx {
     TapeSlide,
     /// The deck's door springs open to let the tape out.
     EjectPop,
+    /// The headphone plug pulled out of its jack.
+    PlugOut,
+    /// The headphone plug pushed back in.
+    PlugIn,
     /// The deck chewing the tape.
     TapeCrunch,
     /// A pencil winding the slack back into the cassette.
@@ -96,6 +100,8 @@ const SFX_TAPE_LIFT: &[u8] = include_bytes!("../assets/sfx/tape_lift.flac");
 const SFX_TAPE_SLIDE: &[u8] = include_bytes!("../assets/sfx/tape_slide.flac");
 const SFX_EJECT_POP: &[u8] = include_bytes!("../assets/sfx/eject_pop.flac");
 const SFX_WIND_LOOP: &[u8] = include_bytes!("../assets/sfx/wind_loop.flac");
+const SFX_PLUG_OUT: &[u8] = include_bytes!("../assets/sfx/plug_out.flac");
+const SFX_PLUG_IN: &[u8] = include_bytes!("../assets/sfx/plug_in.flac");
 const SFX_TAPE_CRUNCH: &[u8] = include_bytes!("../assets/sfx/tape_crunch.flac");
 const SFX_PENCIL_WIND: &[u8] = include_bytes!("../assets/sfx/pencil_wind.flac");
 
@@ -442,6 +448,8 @@ struct SfxEngine {
     tape_lift: Option<Pcm>,
     tape_slide: Option<Pcm>,
     eject_pop: Option<Pcm>,
+    plug_out: Option<Pcm>,
+    plug_in: Option<Pcm>,
     tape_crunch: Option<Pcm>,
     pencil_wind: Option<Pcm>,
     wind: Option<Pcm>,
@@ -480,6 +488,8 @@ impl SfxEngine {
             tape_lift: load(SFX_TAPE_LIFT, None, "tape_lift"),
             tape_slide: load(SFX_TAPE_SLIDE, None, "tape_slide"),
             eject_pop: load(SFX_EJECT_POP, None, "eject_pop"),
+            plug_out: load(SFX_PLUG_OUT, None, "plug_out"),
+            plug_in: load(SFX_PLUG_IN, None, "plug_in"),
             tape_crunch: load(SFX_TAPE_CRUNCH, None, "tape_crunch"),
             pencil_wind: load(SFX_PENCIL_WIND, None, "pencil_wind"),
             wind: load(SFX_WIND_LOOP, Some(LOOP_XFADE_MS), "wind_loop"),
@@ -499,6 +509,8 @@ impl SfxEngine {
             Sfx::TapeLift => &self.tape_lift,
             Sfx::TapeSlide => &self.tape_slide,
             Sfx::EjectPop => &self.eject_pop,
+            Sfx::PlugOut => &self.plug_out,
+            Sfx::PlugIn => &self.plug_in,
             Sfx::TapeCrunch => &self.tape_crunch,
             Sfx::PencilWind => &self.pencil_wind,
         };

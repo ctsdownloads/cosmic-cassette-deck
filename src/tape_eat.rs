@@ -303,26 +303,30 @@ pub fn eaten_body(png: &[u8], hubs: [(f32, f32); 2]) -> Option<::image::RgbaImag
 pub const FRAME_W: u32 = 1100;
 pub const FRAME_H: u32 = 1200;
 /// Where the cassette photo's corners land in the close-up.
-const CLOSE: [(f64, f64); 4] = [(33.161, 685.313), (1068.461, 685.313), (1339.611, 1350.863), (-237.989, 1350.863)];
+const CLOSE: [(f64, f64); 4] = [(57.697, 676.363), (1104.616, 676.363), (1385.498, 1316.251), (-192.403, 1316.251)];
 /// The left hub's centre in the close-up, and the size of its hole there.
-const HOLE_C: (f32, f32) = (296.443, 931.755);
-const HOLE_R: (f32, f32) = (55.227, 42.714);
+const HOLE_C: (f32, f32) = (294.332, 930.796);
+const HOLE_R: (f32, f32) = (55.670, 43.030);
 /// The pencil picture: where its bottom end sits, which columns are its body,
 /// and how far down into the hub it's pushed.
 const PENCIL_ER: (f32, f32) = (60.5, 1353.646);
 const PENCIL_COLS: (f32, f32) = (6.0, 115.0);
 const PENCIL_SINK: f32 = 301.6;
-/// The cassette photo: hub centres, the hub disc that turns, the tape packs.
-const HUB_L: (f32, f32) = (223.4, 233.3);
-const HUB_R: (f32, f32) = (538.3, 233.6);
-const HUB_DISC: f32 = 64.0;
-const PACK_FULL: f32 = 140.0;
-const PACK_EATEN: (f32, f32) = (104.0, 122.0);
-const LABEL_BOTTOM: f32 = 170.0;
+/// The cassette: the same one that's in the deck, cut from the deck photo
+/// and laid flat. Hub centres, the hub disc that turns, the tape packs, and
+/// the area the packs can show in (left, right, bottom).
+const TAPE_PNG: &[u8] = include_bytes!("../assets/egg/walkman_tape.png");
+const HUB_L: (f32, f32) = (207.0, 243.9);
+const HUB_R: (f32, f32) = (522.0, 242.6);
+const HUB_DISC: f32 = 80.0;
+const PACK_FULL: f32 = 124.1;
+const PACK_EATEN: (f32, f32) = (86.6, 101.0);
+const PACK_AREA: (u32, u32, u32) = (18, 757, 400);
+const LABEL_BOTTOM: f32 = 146.1;
 /// Where the song's label text goes on the cassette photo's white label
 /// strip (x0, y0, x1, y1): the same shape as the deck's label, so it reads
 /// the same.
-const LABEL_TEXT: (u32, u32, u32, u32) = (60, 56, 700, 164);
+const LABEL_TEXT: (u32, u32, u32, u32) = (32, 32, 729, 146);
 
 const BG_JPG: &[u8] = include_bytes!("../assets/egg/closeup_bg.jpg");
 const SHADE_PNG: &[u8] = include_bytes!("../assets/egg/closeup_shade.png");
@@ -404,8 +408,8 @@ pub struct Closeup {
 impl Closeup {
     /// `label`: the song's label laid flat (label::flat_strip), written onto
     /// the cassette's label strip so it's the same tape as in the deck.
-    pub fn new(sprite_png: &[u8], label: Option<&::image::RgbaImage>) -> Option<Closeup> {
-        let mut sprite = ::image::load_from_memory(sprite_png).ok()?.to_rgba8();
+    pub fn new(label: Option<&::image::RgbaImage>) -> Option<Closeup> {
+        let mut sprite = ::image::load_from_memory(TAPE_PNG).ok()?.to_rgba8();
         if let Some(label) = label {
             let (x0, y0, x1, y1) = LABEL_TEXT;
             let text = ::image::imageops::resize(label, x1 - x0, y1 - y0, ::image::imageops::FilterType::Triangle);
@@ -447,9 +451,9 @@ impl Closeup {
             if radius >= PACK_FULL - 0.5 {
                 continue;
             }
-            let x0 = (hub.0 - PACK_FULL - 8.0).max(73.0) as u32;
-            let x1 = (hub.0 + PACK_FULL + 8.0).min(689.0) as u32;
-            for y in (LABEL_BOTTOM as u32 + 2)..393 {
+            let x0 = ((hub.0 - PACK_FULL - 8.0) as u32).max(PACK_AREA.0);
+            let x1 = ((hub.0 + PACK_FULL + 8.0) as u32).min(PACK_AREA.1);
+            for y in (LABEL_BOTTOM as u32 + 2)..PACK_AREA.2.min(c.height()) {
                 for x in x0..=x1 {
                     let r = ((x as f32 - hub.0).powi(2) + (y as f32 - hub.1).powi(2)).sqrt();
                     let l = self.lum[(y * w + x) as usize];
@@ -808,7 +812,7 @@ mod tests {
     fn closeup_renders() {
         let strip = crate::label::flat_strip("Midnight Arcade", "The Cassette Kids", &crate::cassette::BELT);
         assert!(strip.is_some());
-        let c = Closeup::new(include_bytes!("../assets/cassette_sprite.png"), strip.as_ref()).expect("assets");
+        let c = Closeup::new(strip.as_ref()).expect("assets");
         let t = Instant::now();
         let f = c.render(0.5, 0.4);
         eprintln!("frame in {:?}", t.elapsed());

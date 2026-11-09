@@ -173,6 +173,7 @@ Your choice is used on the rack, the J-card and the tape loading animation, and 
 - **Walkman:** cycles the five colours.
 - **Wallpaper:** fills the space around the deck with the album cover. Off unless you turn it on.
 - **Tape label:** click it to open that tape's J-card.
+- **Headphone plug:** click it to pull it out and mute the music. Click it again to plug it back in.
 - **Lyrics:** opens the lyric sheet for the song that's playing. Only shown when it has lyrics.
 - **Music Rack:** back to the shelf.
 - **About:** shows the version and a link to this page.
