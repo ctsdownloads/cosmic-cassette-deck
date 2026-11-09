@@ -142,7 +142,7 @@ Each cassette uses the first cover it finds:
 
 - **Loose songs:** a song with no Album tag is never looked up by name, so it doesn't get the wrong album's cover.
 - **Offline:** a cover that fails to download is tried again the next time the app starts.
-- **Wrong cover?** Bring the album to the front of the rack and click **Change cover** to pick an image (PNG, JPG or WEBP). Your pick wins over everything else and is remembered.
+- **Wrong cover?** Bring the album to the front of the rack and click **Change cover** to pick an image (PNG, JPG or WEBP). Your pick wins over everything else and is remembered. **Reset cover** puts back the original.
 
 ### Lyrics
 
