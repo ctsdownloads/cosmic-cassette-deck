@@ -26,6 +26,8 @@ use crate::rack_scene::RackScene;
 use crate::artscrape::{self, ArtRequest, ArtResult};
 use crate::case_open::{self, CaseOpenScene};
 use crate::lyrics::{self, Outcome};
+use crate::cassette::EatenArt;
+use crate::tape_eat::{self, Phase};
 
 const TICK: Duration = Duration::from_millis(16); // ~60 fps: keeps fast spool
 // rotation under the wagon-wheel aliasing limit of the spoked hubs
@@ -83,6 +85,9 @@ enum Screen {
         track: usize,
         started: Instant,
     },
+    /// The deck eats the tape, and it gets wound back in with a pencil
+    /// (tape_eat.rs). Carries when Play was pressed.
+    TapeEat { started: Instant },
 }
 
 /// Where the lyric sheet goes back to.
@@ -110,7 +115,7 @@ impl Screen {
     fn animating(&self) -> bool {
         matches!(
             self,
-            Screen::CaseOpen { .. } | Screen::Eject { .. } | Screen::Swap { .. }
+            Screen::CaseOpen { .. } | Screen::Eject { .. } | Screen::Swap { .. } | Screen::TapeEat { .. }
         )
     }
 }
@@ -293,6 +298,10 @@ pub struct App {
     skip_mode: bool,
     /// Brief correct-direction spool burst after a track skip: (dir, secs left).
     skip_anim: Option<(i8, f32)>,
+    /// Watches the wind keys for the tape-eating extra.
+    egg_trigger: tape_eat::Trigger,
+    /// The tape-eating extra while it runs.
+    egg: Option<Egg>,
 
     // Persistence / UX
     /// Every music folder the rack is filled from.
@@ -879,6 +888,8 @@ impl Application for App {
             wind_resume: false,
             skip_mode: false,
             skip_anim: None,
+            egg_trigger: tape_eat::Trigger::default(),
+            egg: None,
             music_dirs: music_dirs.clone(),
             volume,
             pending_resume,
@@ -1031,6 +1042,7 @@ impl Application for App {
             Screen::JCard { album, side } => self.jcard_view(album, side),
             Screen::Lyrics { album, track, back } => self.lyrics_view(album, track, back),
             Screen::CaseOpen { started, .. } => self.case_open_view(started),
+            Screen::TapeEat { started } => self.tape_eat_view(started),
         };
         // Backdrop layers behind the content, bottom to top, each with an
         // opacity: the 80s bedroom behind the J-card/CaseOpen, and the album-cover
@@ -1068,6 +1080,15 @@ impl Application for App {
             }
             Screen::JCard { .. } | Screen::Lyrics { .. } => {
                 layers.push((self.current_bg().clone(), 1.0))
+            }
+            Screen::TapeEat { started } => {
+                // The wallpaper stays behind the deck; the close-up covers it.
+                if matches!(
+                    tape_eat::phase(started.elapsed().as_secs_f32()),
+                    Phase::Wrong(_) | Phase::Crunch(_) | Phase::Hold | Phase::Up(_)
+                ) {
+                    layers.extend(cover(&self.player_backdrop).map(|h| (h, 1.0)));
+                }
             }
             Screen::Rack => {}
         }
@@ -1200,6 +1221,11 @@ impl App {
                         let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::TapeSeat));
                         self.load_track(album, track);
                     }
+                    return Task::none();
+                }
+
+                if let Screen::TapeEat { started } = self.screen {
+                    self.egg_tick(now, started, dt);
                     return Task::none();
                 }
 
@@ -1538,6 +1564,17 @@ impl App {
 
             Message::TogglePlay => {
                 let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
+                // Play right after slamming the wind keys back and forth: the
+                // deck eats the tape. Every other Play press is as before.
+                if self.egg_trigger.play(Instant::now())
+                    && self.screen == Screen::Player
+                    && !self.skip_mode
+                    && !self.stopped
+                    && self.current.is_some()
+                    && self.start_egg()
+                {
+                    return Task::none();
+                }
                 if let Some((a, t)) = self.current {
                     if self.stopped {
                         // Tape-deck semantics: Stop keeps the tape loaded;
@@ -1558,6 +1595,7 @@ impl App {
             }
 
             Message::Stop => {
+                self.egg_trigger.reset();
                 let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
                 // Stop/eject key: pressed again while stopped, it ejects.
                 if self.stopped && self.current.is_some() && self.screen == Screen::Player {
@@ -1594,10 +1632,12 @@ impl App {
                     // Button click, then the FF/REW whirr for as long as held.
                     let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
                     let _ = self.audio_tx.send(AudioCmd::Wind(true));
+                    self.egg_trigger.wind_start(Instant::now(), dir);
                 }
             }
 
             Message::ToggleSkipMode => {
+                self.egg_trigger.reset();
                 // FUNCT tab: button click, and stop any wind that was running.
                 let _ = self.audio_tx.send(AudioCmd::Sfx(audio::Sfx::KeyPress));
                 let _ = self.audio_tx.send(AudioCmd::Wind(false));
@@ -1614,6 +1654,7 @@ impl App {
             Message::WindStop => {
                 let _ = self.audio_tx.send(AudioCmd::Wind(false));
                 if self.wind.take().is_some() {
+                    self.egg_trigger.wind_stop(Instant::now());
                     let _ = self.audio_tx.send(AudioCmd::Seek(self.position));
                     if self.wind_resume {
                         let _ = self.audio_tx.send(AudioCmd::Resume);
@@ -1958,6 +1999,11 @@ impl App {
             _ if self.current.is_none() => (1.0, None),
             _ => (0.0, self.label_img.as_ref()),
         };
+        let egg_t = match self.screen {
+            Screen::TapeEat { started } => Some(started.elapsed().as_secs_f32()),
+            _ => None,
+        };
+        let egg_phase = egg_t.map(tape_eat::phase);
         let scene = CassetteScene {
             skin: &self.skins[self.skin_idx],
             label,
@@ -1977,10 +2023,19 @@ impl App {
             fill_letterbox: false,
             drop,
             interactive: !self.screen.animating(),
-            play_latched: self.screen == Screen::Player
+            play_latched: (self.screen == Screen::Player || matches!(egg_phase, Some(Phase::Wrong(_))))
                 && self.current.is_some()
                 && self.playing
                 && !self.stopped,
+            eaten: match egg_phase {
+                Some(Phase::Crunch(_) | Phase::Hold) => self.egg.as_ref().map(|e| &e.art),
+                _ => None,
+            },
+            warm: match egg_phase {
+                Some(Phase::Wrong(_)) => self.egg.as_ref().map(|e| &e.art),
+                _ => None,
+            },
+            nudge: egg_t.map(tape_eat::thunk).unwrap_or((0.0, 0.0)),
         };
 
         let deck = Canvas::new(scene).width(Length::Fill).height(Length::Fill);
@@ -2418,7 +2473,7 @@ fn cover_backdrop(bytes: &[u8]) -> Option<cosmic::widget::image::Handle> {
 
 const CASE_T_PNG: &[u8] = include_bytes!("../assets/case_transparent.png");
 /// Empty-deck image + transparent cassette sprite for the load animation.
-const CASSETTE_SPRITE_PNG: &[u8] = include_bytes!("../assets/cassette_sprite.png");
+pub(crate) const CASSETTE_SPRITE_PNG: &[u8] = include_bytes!("../assets/cassette_sprite.png");
 /// Keyed open cassette-case sprite (green removed), for the case-open animation.
 const CASE_OPEN_PNG: &[u8] = include_bytes!("../assets/case_open.png");
 /// Extra bundled room backgrounds — drop PNGs in assets/ and list them here to
@@ -2533,6 +2588,208 @@ fn mpris_commands() -> impl cosmic::iced::futures::Stream<Item = Message> {
 
 // ── Persistence ─────────────────────────────────────────────────────────────
 
+
+/// The tape-eating extra while it runs (see tape_eat.rs).
+struct Egg {
+    /// The deck with the tape chewed.
+    art: EatenArt,
+    /// Where it plays on from, once the tape is back in.
+    resume_at: Duration,
+    /// Where the song was when Play was pressed.
+    chewed_at: Duration,
+    /// The close-up, drawn a frame at a time on its own thread.
+    closeup: CloseupFeed,
+}
+
+/// Asks the close-up thread for frames and holds the newest one. The thread
+/// ends when this is dropped.
+struct CloseupFeed {
+    ask: Sender<(f32, f32)>,
+    asked: Option<(f32, f32)>,
+    latest: Arc<Mutex<Vec<tape_eat::Band>>>,
+}
+
+impl CloseupFeed {
+    fn start() -> CloseupFeed {
+        let (ask, wants) = std::sync::mpsc::channel::<(f32, f32)>();
+        let latest = Arc::new(Mutex::new(Vec::new()));
+        let out = latest.clone();
+        let _ = std::thread::Builder::new().name("tape-eat".into()).spawn(move || {
+            let Some(closeup) = tape_eat::Closeup::new(CASSETTE_SPRITE_PNG) else {
+                return;
+            };
+            // The first frame is ready before the cut.
+            let mut want = Some((0.0, 0.25));
+            loop {
+                if want.is_none() {
+                    match wants.recv() {
+                        Ok(w) => want = Some(w),
+                        Err(_) => return,
+                    }
+                }
+                while let Ok(w) = wants.try_recv() {
+                    want = Some(w);
+                }
+                let Some((wound, dark)) = want.take() else { continue };
+                let img = closeup.render(wound, dark);
+                let bands = tape_eat::bands(&img);
+                *out.lock().unwrap() = bands;
+            }
+        });
+        CloseupFeed { ask, asked: None, latest }
+    }
+
+    fn want(&mut self, wound: f32, dark: f32) {
+        let w = ((wound * 400.0).round() / 400.0, (dark * 100.0).round() / 100.0);
+        if self.asked != Some(w) {
+            self.asked = Some(w);
+            let _ = self.ask.send(w);
+        }
+    }
+
+    /// The newest frame, in strips.
+    fn frame(&self) -> Vec<tape_eat::Band> {
+        self.latest.lock().map(|b| b.clone()).unwrap_or_default()
+    }
+}
+
+impl App {
+    /// The deck eats the tape. False if it can't (then Play does what it
+    /// always does).
+    fn start_egg(&mut self) -> bool {
+        let skin = &self.skins[self.skin_idx];
+        let spec = skin.spec;
+        let Some(body) = tape_eat::eaten_body(skin.body_png, [spec.hub_src, spec.hub_tk]) else {
+            return false;
+        };
+        let (w, h) = body.dimensions();
+        let (tx, ty) = tape_eat::TANGLE_AT;
+        let (tw, th) = tape_eat::TANGLE_SIZE;
+        let art = EatenArt {
+            body: cosmic::widget::image::Handle::from_rgba(w, h, body.into_raw()),
+            tangle: cosmic::widget::image::Handle::from_bytes(tape_eat::TANGLE_PNG.to_vec()),
+            tangle_rect: (tx, ty, tx + tw, ty + th),
+        };
+        let chewed_at = self.position;
+        let total = self.duration();
+        let after = (chewed_at + Duration::from_secs_f32(tape_eat::tape_moved(tape_eat::WARBLE))).min(total);
+        let resume_at = after.saturating_sub(Duration::from_secs_f32(tape_eat::BACK_UP));
+        self.stop_winding();
+        let _ = self.audio_tx.send(AudioCmd::Chew(chewed_at));
+        self.playing = true;
+        self.reel_speed = 1.0;
+        self.egg = Some(Egg { art, resume_at, chewed_at, closeup: CloseupFeed::start() });
+        self.screen = Screen::TapeEat { started: Instant::now() };
+        self.push_mpris(MprisUpdate::Playing);
+        true
+    }
+
+    /// One frame of the extra: sounds on cue, the reels, the close-up.
+    fn egg_tick(&mut self, now: Instant, started: Instant, dt: f32) {
+        let t = now.duration_since(started).as_secs_f32();
+        let before = t - dt;
+        let crossed = |mark: f32| t >= mark && before < mark;
+        for (mark, cue) in [
+            (tape_eat::CRUNCH_SFX, audio::Sfx::TapeCrunch),
+            (tape_eat::CLACK_SFX, audio::Sfx::EndClack),
+            (tape_eat::PENCIL_SFX, audio::Sfx::PencilWind),
+            (tape_eat::SEAT_SFX, audio::Sfx::TapeSeat),
+        ] {
+            if crossed(mark) {
+                let _ = self.audio_tx.send(AudioCmd::Sfx(cue));
+            }
+        }
+        if self.egg.is_none() {
+            self.screen = Screen::Player;
+            return;
+        }
+        let progress = self.progress();
+        let Some(egg) = self.egg.as_mut() else { return };
+        let dt = dt.min(0.05);
+        match tape_eat::phase(t) {
+            Phase::Wrong(_) => {
+                // The supply reel keeps feeding; the take-up reel stutters and stops.
+                let (fs, ft) = tape_eat::reel_factors(t);
+                let (w_src, w_tk) = spool_omegas(progress);
+                self.angle_src = spin(self.angle_src, w_src * dt * fs);
+                self.angle_tk = spin(self.angle_tk, w_tk * dt * ft);
+                self.position = egg.chewed_at + Duration::from_secs_f32(tape_eat::tape_moved(t));
+                egg.closeup.want(0.0, 0.25);
+            }
+            Phase::Crunch(_) | Phase::Hold => {
+                // Stopped dead.
+                self.playing = false;
+                self.reel_speed = 0.0;
+            }
+            Phase::Wind(u) => egg.closeup.want(u, 0.25 + 0.35 * u),
+            Phase::Fade(_) | Phase::Black => egg.closeup.want(1.0, 0.6),
+            Phase::Up(_) => {
+                if t >= tape_eat::MUSIC {
+                    if before < tape_eat::MUSIC {
+                        let _ = self.audio_tx.send(AudioCmd::Unchew(egg.resume_at));
+                        self.position = egg.resume_at;
+                        self.playing = true;
+                    }
+                    let (w_src, w_tk) = spool_omegas(progress);
+                    self.angle_src = spin(self.angle_src, w_src * dt);
+                    self.angle_tk = spin(self.angle_tk, w_tk * dt);
+                }
+            }
+            Phase::Done => {
+                if before < tape_eat::MUSIC {
+                    // A long stall skipped the music cue: start it now.
+                    let _ = self.audio_tx.send(AudioCmd::Unchew(egg.resume_at));
+                    self.position = egg.resume_at;
+                }
+                self.playing = true;
+                self.reel_speed = 1.0;
+                self.egg = None;
+                self.screen = Screen::Player;
+                self.push_mpris(MprisUpdate::Playing);
+                self.save_state();
+            }
+        }
+    }
+
+    /// The extra on screen: the deck while it chews and when it comes back,
+    /// the close-up in between.
+    fn tape_eat_view(&self, started: Instant) -> Element<'_, Message> {
+        let t = started.elapsed().as_secs_f32();
+        // Pictures always draw above shapes in the same canvas, so the black
+        // that fades over them is its own layer on top.
+        let (under, veil) = match tape_eat::phase(t) {
+            Phase::Wind(_) => (self.closeup_view(), 0.0),
+            Phase::Fade(u) => (self.closeup_view(), tape_eat::ease(u)),
+            Phase::Black => (self.closeup_view(), 1.0),
+            // The deck fading back up from black.
+            Phase::Up(u) => (self.player_view(), 1.0 - tape_eat::ease(u)),
+            _ => return self.player_view(),
+        };
+        if veil <= 0.0 {
+            return under;
+        }
+        let black = container(widget::Space::new().width(Length::Fill).height(Length::Fill))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .class(cosmic::theme::Container::custom(move |_| cosmic::iced::widget::container::Style {
+                background: Some(cosmic::iced::Background::Color(cosmic::iced::Color::from_rgba(0.0, 0.0, 0.0, veil.min(1.0)))),
+                ..Default::default()
+            }));
+        cosmic::iced::widget::Stack::with_children(vec![under, black.into()])
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+
+    /// The close-up of the cassette on the rug, with the pencil winding it.
+    fn closeup_view(&self) -> Element<'_, Message> {
+        let bands = self.egg.as_ref().map(|e| e.closeup.frame()).unwrap_or_default();
+        Canvas::new(tape_eat::CloseupScene { bands })
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+}
 
 /// Advance a spool angle, clamping the per-frame step so fast winds never
 /// exceed the wagon-wheel aliasing limit of the spoked hubs (~0.35 rad/frame

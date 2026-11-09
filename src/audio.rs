@@ -39,6 +39,12 @@ pub enum AudioCmd {
     Sfx(Sfx),
     /// Start (true) / stop (false) the fast-forward / rewind whirr loop.
     Wind(bool),
+    /// The deck eats the tape: play the loaded song from here, going wrong
+    /// (see `tape_eat::chew`), then stop dead.
+    Chew(Duration),
+    /// Back in the deck after the tape was wound back: play the loaded song
+    /// from here, with a short warble as the crinkled stretch goes past.
+    Unchew(Duration),
 }
 
 /// One-shot sound effects (mechanism / UI feedback).
@@ -58,6 +64,10 @@ pub enum Sfx {
     TapeSlide,
     /// The deck's door springs open to let the tape out.
     EjectPop,
+    /// The deck chewing the tape.
+    TapeCrunch,
+    /// A pencil winding the slack back into the cassette.
+    PencilWind,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -86,6 +96,8 @@ const SFX_TAPE_LIFT: &[u8] = include_bytes!("../assets/sfx/tape_lift.flac");
 const SFX_TAPE_SLIDE: &[u8] = include_bytes!("../assets/sfx/tape_slide.flac");
 const SFX_EJECT_POP: &[u8] = include_bytes!("../assets/sfx/eject_pop.flac");
 const SFX_WIND_LOOP: &[u8] = include_bytes!("../assets/sfx/wind_loop.flac");
+const SFX_TAPE_CRUNCH: &[u8] = include_bytes!("../assets/sfx/tape_crunch.flac");
+const SFX_PENCIL_WIND: &[u8] = include_bytes!("../assets/sfx/pencil_wind.flac");
 
 /// Effect loudness, independent of the music volume slider — UI feedback
 /// shouldn't disappear when the music is turned down.
@@ -110,6 +122,8 @@ pub fn spawn(status: Status) -> Sender<AudioCmd> {
             let mut sink: Option<rodio::Sink> = None;
             let mut loaded = false;
             let mut volume: f32 = 1.0;
+            // The song in the deck, for the tape-eating extra to replay.
+            let mut loaded_path: Option<PathBuf> = None;
 
             // Persistent effects output (None ⇒ effects silently disabled).
             let mut sfx = SfxEngine::new();
@@ -136,6 +150,7 @@ pub fn spawn(status: Status) -> Sender<AudioCmd> {
                                 }
                             }
                             let handle = &output.as_ref().unwrap().1;
+                            loaded_path = Some(path.clone());
 
                             match open_source(&path) {
                                 Ok(source) => match rodio::Sink::try_new(handle) {
@@ -208,6 +223,41 @@ pub fn spawn(status: Status) -> Sender<AudioCmd> {
                         AudioCmd::Wind(on) => {
                             if let Some(engine) = &mut sfx {
                                 engine.set_wind(on);
+                            }
+                        }
+                        AudioCmd::Chew(at) | AudioCmd::Unchew(at) => {
+                            let chew = matches!(cmd, AudioCmd::Chew(_));
+                            let (Some(path), Some((_, handle))) = (&loaded_path, &output) else {
+                                continue;
+                            };
+                            if let Some(old) = sink.take() {
+                                old.stop();
+                            }
+                            let started = open_source(path).map_err(|e| e.to_string()).and_then(|dec| {
+                                let fx = TapeFx::new(dec.convert_samples(), chew);
+                                let s = rodio::Sink::try_new(handle).map_err(|e| e.to_string())?;
+                                s.pause();
+                                s.set_volume(volume);
+                                s.append(fx);
+                                let _ = s.try_seek(at);
+                                s.play();
+                                Ok(s)
+                            });
+                            match started {
+                                Ok(s) => {
+                                    sink = Some(s);
+                                    // While it chews, the song running out isn't
+                                    // the end of the track.
+                                    loaded = !chew;
+                                    let mut st = status.lock().unwrap();
+                                    st.position = at;
+                                    st.track_finished = false;
+                                    st.playing = true;
+                                }
+                                Err(e) => {
+                                    report(&status, format!("audio error: {e}"));
+                                    loaded = false;
+                                }
                             }
                         }
                     },
@@ -392,6 +442,8 @@ struct SfxEngine {
     tape_lift: Option<Pcm>,
     tape_slide: Option<Pcm>,
     eject_pop: Option<Pcm>,
+    tape_crunch: Option<Pcm>,
+    pencil_wind: Option<Pcm>,
     wind: Option<Pcm>,
 }
 
@@ -428,6 +480,8 @@ impl SfxEngine {
             tape_lift: load(SFX_TAPE_LIFT, None, "tape_lift"),
             tape_slide: load(SFX_TAPE_SLIDE, None, "tape_slide"),
             eject_pop: load(SFX_EJECT_POP, None, "eject_pop"),
+            tape_crunch: load(SFX_TAPE_CRUNCH, None, "tape_crunch"),
+            pencil_wind: load(SFX_PENCIL_WIND, None, "pencil_wind"),
             wind: load(SFX_WIND_LOOP, Some(LOOP_XFADE_MS), "wind_loop"),
             wind_sink: None,
             handle,
@@ -445,6 +499,8 @@ impl SfxEngine {
             Sfx::TapeLift => &self.tape_lift,
             Sfx::TapeSlide => &self.tape_slide,
             Sfx::EjectPop => &self.eject_pop,
+            Sfx::TapeCrunch => &self.tape_crunch,
+            Sfx::PencilWind => &self.pencil_wind,
         };
         if let Some(pcm) = pcm {
             let src = PcmSource::new(pcm, false)
@@ -477,5 +533,218 @@ impl SfxEngine {
         } else if let Some(sink) = self.wind_sink.take() {
             sink.stop();
         }
+    }
+}
+
+// ── The tape-eating extra ───────────────────────────────────────────────────
+
+/// The song as the tape misbehaves: played at a changing speed (the pitch
+/// moves with it), through a treble cut that opens and closes, at a changing
+/// loudness. Chewing, it goes wrong (`tape_eat::chew`) over the motor's
+/// strain and stops dead; afterwards it warbles briefly (`tape_eat::warble`)
+/// and then plays on clean, exactly as normal.
+struct TapeFx<S: Source<Item = f32>> {
+    inner: S,
+    chew: bool,
+    channels: usize,
+    rate_hz: u32,
+    /// Two neighbouring input frames, and how far between them we are.
+    a: Vec<f32>,
+    b: Vec<f32>,
+    frac: f64,
+    /// The frame being handed out, sample by sample.
+    out: Vec<f32>,
+    out_i: usize,
+    /// Treble-cut memory per channel.
+    lp: Vec<f32>,
+    /// Frames handed out so far (the effect's clock).
+    frames: u64,
+    motor_phase: f32,
+    motor_lp: f32,
+    done: bool,
+}
+
+impl<S: Source<Item = f32>> TapeFx<S> {
+    fn new(inner: S, chew: bool) -> Self {
+        let channels = inner.channels().max(1) as usize;
+        let rate_hz = inner.sample_rate().max(1);
+        let mut fx = TapeFx {
+            inner,
+            chew,
+            channels,
+            rate_hz,
+            a: vec![0.0; channels],
+            b: vec![0.0; channels],
+            frac: 0.0,
+            out: vec![0.0; channels],
+            out_i: channels,
+            lp: vec![0.0; channels],
+            frames: 0,
+            motor_phase: 0.0,
+            motor_lp: 0.0,
+            done: false,
+        };
+        fx.refill();
+        fx
+    }
+
+    fn read_frame(&mut self, into_b: bool) -> bool {
+        for c in 0..self.channels {
+            match self.inner.next() {
+                Some(v) => {
+                    if into_b {
+                        self.b[c] = v;
+                    } else {
+                        self.a[c] = v;
+                    }
+                }
+                None => return false,
+            }
+        }
+        true
+    }
+
+    fn refill(&mut self) {
+        self.frac = 0.0;
+        if !(self.read_frame(false) && self.read_frame(true)) {
+            self.done = true;
+        }
+    }
+
+    /// The next output frame into `out`; false when the song ends (or, while
+    /// chewing, when the deck stops dead).
+    fn next_frame(&mut self) -> bool {
+        if self.done {
+            return false;
+        }
+        let t = self.frames as f32 / self.rate_hz as f32;
+        if !self.chew && t >= crate::tape_eat::WARBLE_DONE {
+            // Past the crinkled stretch: the song exactly as it is.
+            self.out.copy_from_slice(&self.a);
+            self.out_i = 0;
+            self.frames += 1;
+            std::mem::swap(&mut self.a, &mut self.b);
+            if !self.read_frame(true) {
+                self.done = true;
+            }
+            return true;
+        }
+        let (speed, cutoff, gain) = if self.chew {
+            if t >= crate::tape_eat::WARBLE {
+                self.done = true;
+                return false;
+            }
+            crate::tape_eat::chew(t)
+        } else {
+            let (speed, cutoff) = crate::tape_eat::warble(t);
+            (speed, cutoff, 1.0)
+        };
+        let k = 1.0 - (-std::f32::consts::TAU * cutoff / self.rate_hz as f32).exp();
+        let f = self.frac as f32;
+        // The motor straining under the music in the last part of the chew.
+        let whine = if self.chew {
+            let (hz, amp) = crate::tape_eat::motor(t);
+            self.motor_phase = (self.motor_phase + hz / self.rate_hz as f32).fract();
+            let saw = 2.0 * self.motor_phase - 1.0;
+            let mk = 1.0 - (-std::f32::consts::TAU * 1800.0 / self.rate_hz as f32).exp();
+            self.motor_lp += mk * (saw - self.motor_lp);
+            self.motor_lp * amp
+        } else {
+            0.0
+        };
+        for c in 0..self.channels {
+            let v = self.a[c] + (self.b[c] - self.a[c]) * f;
+            self.lp[c] += k * (v - self.lp[c]);
+            self.out[c] = self.lp[c] * gain + whine;
+        }
+        self.out_i = 0;
+        self.frames += 1;
+        self.frac += speed as f64;
+        while self.frac >= 1.0 {
+            self.frac -= 1.0;
+            std::mem::swap(&mut self.a, &mut self.b);
+            if !self.read_frame(true) {
+                self.done = true;
+                break;
+            }
+        }
+        true
+    }
+}
+
+impl<S: Source<Item = f32>> Iterator for TapeFx<S> {
+    type Item = f32;
+
+    #[inline]
+    fn next(&mut self) -> Option<f32> {
+        if self.out_i >= self.channels && !self.next_frame() {
+            return None;
+        }
+        let v = self.out[self.out_i];
+        self.out_i += 1;
+        Some(v)
+    }
+}
+
+impl<S: Source<Item = f32>> Source for TapeFx<S> {
+    fn current_frame_len(&self) -> Option<usize> {
+        None
+    }
+
+    fn channels(&self) -> u16 {
+        self.channels as u16
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.rate_hz
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        None
+    }
+
+    fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+        self.inner.try_seek(pos)?;
+        self.done = false;
+        self.refill();
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A steady tone standing in for a song.
+    fn tone(secs: f32) -> rodio::source::TakeDuration<rodio::source::SineWave> {
+        rodio::source::SineWave::new(440.0).take_duration(Duration::from_secs_f32(secs))
+    }
+
+    #[test]
+    fn chewing_stops_dead_after_the_warble() {
+        let fx = TapeFx::new(tone(10.0), true);
+        let rate = fx.sample_rate() as f32;
+        let n = fx.count() as f32;
+        let secs = n / rate;
+        assert!((secs - crate::tape_eat::WARBLE).abs() < 0.01, "{secs}");
+    }
+
+    #[test]
+    fn after_the_warble_it_plays_clean() {
+        let src = tone(5.0);
+        let rate = src.sample_rate() as usize;
+        let fx: Vec<f32> = TapeFx::new(src, false).collect();
+        let plain: Vec<f32> = tone(5.0).collect();
+        // Warbling speed means slightly more or less of the song; the length
+        // still ends up within a few milliseconds of it.
+        assert!((fx.len() as i64 - plain.len() as i64).unsigned_abs() < (rate / 50) as u64);
+        // Past the warble, the song comes through untouched, sample for
+        // sample (allowing for where the warble left it).
+        let tail = &fx[fx.len() - rate..fx.len() - 2];
+        let found = (0..rate / 50).any(|shift| {
+            let start = plain.len() - rate - shift;
+            tail.iter().zip(&plain[start..]).all(|(a, b)| a == b)
+        });
+        assert!(found, "clean tail doesn't match the song");
     }
 }

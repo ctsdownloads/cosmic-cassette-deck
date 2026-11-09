@@ -10,6 +10,7 @@ mod rack_scene;
 mod case_scene;
 mod case_open;
 mod artscrape;
+mod tape_eat;
 
 /// Smallest window the layout stays readable at.
 const MIN_W: f32 = 420.0;
