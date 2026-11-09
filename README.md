@@ -17,6 +17,7 @@ The deck is a real photograph. The reels spin, the keys press down, and every al
 - **Printed label:** the tape's label shows the song and album from your music files.
 - **J-card:** the folded insert from the cassette case, with the album's songs typed out on old paper and split into Side A and Side B.
 - **Lyrics:** a lyric sheet for the song that's playing, when its lyrics can be found.
+- **Headphone plug:** click it to pull it out and mute the music. Click it again to plug it back in.
 - **Cassette Rack:** flip through your albums like a shelf of tapes, with their covers, sorted by artist. It follows the tape that's playing and marks it "♪ In the deck".
 - **Five colours:** Denim Belt, Red, Blue, Black and White.
 - **Your own backgrounds:** swap the room behind the rack, or add a picture of your own.
@@ -27,6 +28,8 @@ The deck is a real photograph. The reels spin, the keys press down, and every al
 - **Formats:** MP3, FLAC, M4A/AAC and WAV.
 
 ## Screenshots
+
+**Note:** these screenshots are from an earlier version, so some buttons look different or are missing.
 
 **Cassette Rack:** one cassette per album, with its cover. Browse with the arrow keys or Prev and Next. Click the cassette at the front, or Play, to put it in the deck.
 
@@ -86,7 +89,13 @@ For any other distro, use the Flatpak: Arch, Debian, openSUSE, Mint, Pop!_OS and
 flatpak install --user ./cosmic-cassette-deck.flatpak
 ```
 
-**Updates:** the app isn't on Flathub, so it won't update by itself. To update, install the newer `.flatpak` over the old one. You don't need to remove the old one first.
+**Updating to a new release:** the app isn't on Flathub, so it won't update by itself, and an app store will only offer to open the copy you already have. Download the new `cosmic-cassette-deck.flatpak`, then in the folder you saved it to, run:
+
+```sh
+flatpak install --user --reinstall ./cosmic-cassette-deck.flatpak
+```
+
+`--reinstall` swaps the old version for the new one. Your settings, covers and lyrics are kept. Without it, the install stops with "already installed".
 
 **Install or update with one command:** this checks the version you have, and only downloads when there's a newer release. It works in bash, zsh and fish.
 
@@ -100,7 +109,7 @@ if [ -n "$latest" ] && [ "$latest" = "$installed" ]; then
   echo "Cassette Deck $installed is already installed and up to date."
 else
   curl -fL -o /tmp/cosmic-cassette-deck.flatpak "$url" &&
-  flatpak install --user -y /tmp/cosmic-cassette-deck.flatpak
+  flatpak install --user --reinstall -y /tmp/cosmic-cassette-deck.flatpak
 fi
 '
 ```
@@ -277,11 +286,11 @@ Then see [Using it](#using-it) to add your music.
 
 **Font:** the J-card and the lyric sheet are typed in [Courier Prime](https://github.com/quoteunquoteapps/CourierPrime) (`assets/CourierPrime-*.ttf`), under the SIL Open Font License 1.1. The license is in `assets/CourierPrime-OFL.txt`.
 
-**Sounds:** short FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, `end_clack`, `case_open`, `tape_lift`, `tape_slide` and `eject_pop`.
+**Sounds:** short FLAC clips in `assets/sfx/`: `key_press`, `tape_seat`, `wind_loop`, `end_clack`, `case_open`, `tape_lift`, `tape_slide`, `eject_pop`, `plug_out` and `plug_in`.
 
 - **Built in:** they're compiled into the app. To use your own, replace a clip with one of the same name and build from source. Installed packages have no sound files on disk to swap.
 - **Looping:** only `wind_loop` repeats. It's stitched seamlessly in code, so any length works.
-- **Sources:** `case_open`, `tape_lift`, `tape_slide` and `eject_pop` are cut from Freesound recordings released as Creative Commons 0 (public domain): [cassette.wav](https://freesound.org/people/moxobna/sounds/40164/) by moxobna, [cassette.wav](https://freesound.org/people/symphoid/sounds/159183/) by symphoid, and [Cassette Player Ejecting.wav](https://freesound.org/people/jpkweli/sounds/154756/) by jpkweli.
+- **Sources:** `case_open`, `tape_lift`, `tape_slide` and `eject_pop` are cut from Freesound recordings released as Creative Commons 0 (public domain): [cassette.wav](https://freesound.org/people/moxobna/sounds/40164/) by moxobna, [cassette.wav](https://freesound.org/people/symphoid/sounds/159183/) by symphoid, and [Cassette Player Ejecting.wav](https://freesound.org/people/jpkweli/sounds/154756/) by jpkweli. `plug_out` and `plug_in` are made for this app.
 
 ## License
 

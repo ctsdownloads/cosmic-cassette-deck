@@ -14,20 +14,26 @@
 
   <description>
     <p>
-      A photoreal 1980s portable cassette player for your local music library, built
-      as a native COSMIC application. The deck is a photograph, and the app draws the
-      living parts on top every frame.
+      A 1980s portable cassette player for your own music, built as a native app for
+      the COSMIC desktop. The deck is a real photograph. The reels spin, the keys press
+      down, and every album is a cassette you pull off a shelf and drop into the deck.
     </p>
     <p>Features:</p>
     <ul>
-      <li>Animated reels driven by physically derived spool speeds: the source reel empties and speeds up while the take-up slows</li>
-      <li>Click a cassette case and it hinges open, the tape lifts out, and it drops into the deck before playback begins</li>
-      <li>A dynamic track label rasterized from your file tags</li>
-      <li>Five colour skins, and swappable room backgrounds you can add your own images to</li>
-      <li>Cassette Rack: fan through your albums with cover art from your tags, or scraped when a tag has none</li>
-      <li>Mechanical sound: the transport keys click, the tape seats with a clunk, and holding fast-forward or rewind whirrs</li>
-      <li>MPRIS support for media keys, playerctl, and desktop panel controls</li>
-      <li>Plays MP3, FLAC, M4A/AAC, and WAV</li>
+      <li>Spinning reels that turn like a real tape: one empties and speeds up as the other fills and slows</li>
+      <li>Click a cassette on the rack and its case swings open, the tape lifts out and slides into the deck</li>
+      <li>Eject and swap: press Stop twice and the tape pops out, and the next album's tape slides in when one ends</li>
+      <li>Keys that sink when pressed and spring back, and a printed label with the song and album</li>
+      <li>J-card: the album's songs typed out on old paper, split into Side A and Side B</li>
+      <li>Lyrics: a lyric sheet for the song that's playing, when its lyrics can be found</li>
+      <li>Cassette Rack: flip through your albums like a shelf of tapes, with their covers, from as many music folders as you like</li>
+      <li>Covers from your files, your album folders or the Cover Art Archive, with Change cover and Reset cover</li>
+      <li>Five deck colours, your own room backgrounds, and an optional album-cover wallpaper</li>
+      <li>Click the headphone plug to pull it out and mute the music</li>
+      <li>Tape sounds: keys click, the case snaps open, the tape clunks into place and fast-forward whirrs</li>
+      <li>Media keys and your desktop's player controls work</li>
+      <li>Picks up where you left off</li>
+      <li>Plays MP3, FLAC, M4A/AAC and WAV</li>
     </ul>
   </description>
 
@@ -35,7 +41,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <caption>The photoreal cassette deck playing a track</caption>
+      <caption>The cassette deck playing a song</caption>
       <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/player-denim.png</image>
     </screenshot>
     <screenshot>
@@ -43,8 +49,12 @@
       <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/cassette-rack.png</image>
     </screenshot>
     <screenshot>
-      <caption>An album case, its cover printed on the J-card</caption>
-      <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/album.png</image>
+      <caption>The J-card lists the album's songs, Side A and Side B</caption>
+      <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/jcard.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The lyric sheet for the song that's playing</caption>
+      <image>https://raw.githubusercontent.com/ctsdownloads/cosmic-cassette-deck/main/docs/lyrics.png</image>
     </screenshot>
     <screenshot>
       <caption>The case hinges open and the tape drops into the deck</caption>
