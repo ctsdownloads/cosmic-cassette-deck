@@ -30,8 +30,21 @@ pub fn render(song: &str, album: &str, spec: &SkinSpec) -> image::Handle {
     }
 }
 
-/// Horizontal strip rotated 90° CCW: reads bottom-to-top.
-fn render_vertical(song: &str, album: &str, label_w: u32, label_h: u32) -> image::Handle {
+/// The label as it reads before it's turned to stand up on the deck: one
+/// horizontal strip, `None` for a skin whose label is already horizontal.
+/// The close-up of the cassette on the rug (tape_eat.rs) shows this.
+pub fn flat_strip(song: &str, album: &str, spec: &SkinSpec) -> Option<::image::RgbaImage> {
+    if !spec.label_vertical {
+        return None;
+    }
+    let label_w = (spec.label.2 - spec.label.0) as u32;
+    let label_h = (spec.label.3 - spec.label.1) as u32;
+    let (strip, sw, sh) = strip_vertical(song, album, label_w, label_h);
+    ::image::RgbaImage::from_raw(sw, sh, strip)
+}
+
+/// The text of a vertical label laid out flat: (pixels, width, height).
+fn strip_vertical(song: &str, album: &str, label_w: u32, label_h: u32) -> (Vec<u8>, u32, u32) {
     // Strip: width = label height, height = label width.
     let sw = label_h * SS;
     let sh = label_w * SS;
@@ -54,6 +67,12 @@ fn render_vertical(song: &str, album: &str, label_w: u32, label_h: u32) -> image
     }
 
     draw_centered(&mut strip, sw, sh, &sub_font, 26.0 * SS as f32, album, 103.0 * SS as f32, INK_SUB, max_w);
+    (strip, sw, sh)
+}
+
+/// Horizontal strip rotated 90° CCW: reads bottom-to-top.
+fn render_vertical(song: &str, album: &str, label_w: u32, label_h: u32) -> image::Handle {
+    let (strip, sw, sh) = strip_vertical(song, album, label_w, label_h);
 
     // Rotate 90° CW: dst(x, y) = src(y, sh − 1 − x).
     // (The label sits on the RIGHT of the deck now; CW rotation makes the

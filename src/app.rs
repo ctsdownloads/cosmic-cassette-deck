@@ -2610,12 +2610,13 @@ struct CloseupFeed {
 }
 
 impl CloseupFeed {
-    fn start() -> CloseupFeed {
+    /// `label`: the playing tape's label laid flat, for the cassette on the rug.
+    fn start(label: Option<::image::RgbaImage>) -> CloseupFeed {
         let (ask, wants) = std::sync::mpsc::channel::<(f32, f32)>();
         let latest = Arc::new(Mutex::new(Vec::new()));
         let out = latest.clone();
         let _ = std::thread::Builder::new().name("tape-eat".into()).spawn(move || {
-            let Some(closeup) = tape_eat::Closeup::new(CASSETTE_SPRITE_PNG) else {
+            let Some(closeup) = tape_eat::Closeup::new(CASSETTE_SPRITE_PNG, label.as_ref()) else {
                 return;
             };
             // The first frame is ready before the cut.
@@ -2678,7 +2679,11 @@ impl App {
         let _ = self.audio_tx.send(AudioCmd::Chew(chewed_at));
         self.playing = true;
         self.reel_speed = 1.0;
-        self.egg = Some(Egg { art, resume_at, chewed_at, closeup: CloseupFeed::start() });
+        // The same label as on the tape in the deck.
+        let label = self
+            .current_track()
+            .and_then(|(album, song)| label::flat_strip(&song.title, &album.title, spec));
+        self.egg = Some(Egg { art, resume_at, chewed_at, closeup: CloseupFeed::start(label) });
         self.screen = Screen::TapeEat { started: Instant::now() };
         self.push_mpris(MprisUpdate::Playing);
         true

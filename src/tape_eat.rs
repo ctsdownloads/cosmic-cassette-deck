@@ -1,7 +1,7 @@
 //! The deck eats the tape: a hidden extra.
 //!
 //! Slam the wind keys back and forth (FF, REW, FF, REW, FF: four reversals
-//! inside about three seconds, each key pressed right after the last one let
+//! inside about six seconds, each key pressed soon after the last one let
 //! go) and hit Play straight after. On a real deck that throws a slack loop
 //! of tape into the transport, and the pinch roller grabs it. Here the song
 //! warbles, loses its treble and drags down while the take-up reel stutters
@@ -24,11 +24,11 @@ use cosmic::iced::{mouse, Color, Point, Rectangle, Size};
 pub const FLIPS_NEEDED: usize = 4;
 /// The next wind key must go down within this long of the last one letting
 /// go, while the reels are still spinning.
-const FLIP_GAP: Duration = Duration::from_millis(600);
+const FLIP_GAP: Duration = Duration::from_millis(1200);
 /// All the reversals fit inside this long.
-const CHAIN_WINDOW: Duration = Duration::from_millis(3500);
+const CHAIN_WINDOW: Duration = Duration::from_millis(6000);
 /// Play must come this soon after the last wind key lets go.
-const PLAY_GAP: Duration = Duration::from_millis(1000);
+const PLAY_GAP: Duration = Duration::from_millis(2500);
 
 /// Watches the wind keys for the reversals. It never changes what a key
 /// does; `play` only says whether this Play press sets the extra off.
@@ -319,6 +319,10 @@ const HUB_DISC: f32 = 64.0;
 const PACK_FULL: f32 = 140.0;
 const PACK_EATEN: (f32, f32) = (104.0, 122.0);
 const LABEL_BOTTOM: f32 = 170.0;
+/// Where the song's label text goes on the cassette photo's white label
+/// strip (x0, y0, x1, y1): the same shape as the deck's label, so it reads
+/// the same.
+const LABEL_TEXT: (u32, u32, u32, u32) = (60, 56, 700, 164);
 
 const BG_JPG: &[u8] = include_bytes!("../assets/egg/closeup_bg.jpg");
 const SHADE_PNG: &[u8] = include_bytes!("../assets/egg/closeup_shade.png");
@@ -398,8 +402,15 @@ pub struct Closeup {
 }
 
 impl Closeup {
-    pub fn new(sprite_png: &[u8]) -> Option<Closeup> {
-        let sprite = ::image::load_from_memory(sprite_png).ok()?.to_rgba8();
+    /// `label`: the song's label laid flat (label::flat_strip), written onto
+    /// the cassette's label strip so it's the same tape as in the deck.
+    pub fn new(sprite_png: &[u8], label: Option<&::image::RgbaImage>) -> Option<Closeup> {
+        let mut sprite = ::image::load_from_memory(sprite_png).ok()?.to_rgba8();
+        if let Some(label) = label {
+            let (x0, y0, x1, y1) = LABEL_TEXT;
+            let text = ::image::imageops::resize(label, x1 - x0, y1 - y0, ::image::imageops::FilterType::Triangle);
+            ::image::imageops::overlay(&mut sprite, &text, x0 as i64, y0 as i64);
+        }
         let bg = ::image::load_from_memory(BG_JPG).ok()?.to_rgba8();
         let shade = ::image::load_from_memory(SHADE_PNG).ok()?.to_luma8();
         let pencil = ::image::load_from_memory(PENCIL_PNG).ok()?.to_rgba8();
@@ -705,6 +716,18 @@ mod tests {
     }
 
     #[test]
+    fn a_hand_on_a_mouse_can_set_it_off() {
+        // Clicking back and forth by hand: each key held about a third of a
+        // second, about a second between presses, then over to Play.
+        let t0 = Instant::now();
+        let mut tr = Trigger::default();
+        for (i, dir) in [1, -1, 1, -1, 1].into_iter().enumerate() {
+            tap(&mut tr, t0, i as u64 * 1100, 350, dir);
+        }
+        assert!(tr.play(at(t0, 4 * 1100 + 350 + 2000)));
+    }
+
+    #[test]
     fn three_reversals_are_not_enough() {
         let t0 = Instant::now();
         let mut tr = Trigger::default();
@@ -730,9 +753,9 @@ mod tests {
         let t0 = Instant::now();
         let mut tr = Trigger::default();
         for (i, dir) in [1, -1, 1, -1, 1].into_iter().enumerate() {
-            tap(&mut tr, t0, i as u64 * 1200, 300, dir);
+            tap(&mut tr, t0, i as u64 * 2000, 300, dir);
         }
-        assert!(!tr.play(at(t0, 4 * 1200 + 300 + 300)));
+        assert!(!tr.play(at(t0, 4 * 2000 + 300 + 300)));
     }
 
     #[test]
@@ -742,7 +765,7 @@ mod tests {
         for (i, dir) in [1, -1, 1, -1, 1].into_iter().enumerate() {
             tap(&mut tr, t0, i as u64 * 450, 300, dir);
         }
-        assert!(!tr.play(at(t0, 4 * 450 + 300 + 1500)));
+        assert!(!tr.play(at(t0, 4 * 450 + 300 + 3000)));
     }
 
     #[test]
@@ -783,7 +806,9 @@ mod tests {
 
     #[test]
     fn closeup_renders() {
-        let c = Closeup::new(include_bytes!("../assets/cassette_sprite.png")).expect("assets");
+        let strip = crate::label::flat_strip("Midnight Arcade", "The Cassette Kids", &crate::cassette::BELT);
+        assert!(strip.is_some());
+        let c = Closeup::new(include_bytes!("../assets/cassette_sprite.png"), strip.as_ref()).expect("assets");
         let t = Instant::now();
         let f = c.render(0.5, 0.4);
         eprintln!("frame in {:?}", t.elapsed());
