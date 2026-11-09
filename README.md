@@ -29,8 +29,6 @@ The deck is a real photograph. The reels spin, the keys press down, and every al
 
 ## Screenshots
 
-**Note:** these screenshots are from an earlier version, so some buttons look different or are missing.
-
 **Cassette Rack:** one cassette per album, with its cover. Browse with the arrow keys or Prev and Next. Click the cassette at the front, or Play, to put it in the deck.
 
 ![Cassette Rack](docs/cassette-rack.png)
@@ -39,13 +37,17 @@ The deck is a real photograph. The reels spin, the keys press down, and every al
 
 ![J-card](docs/jcard.png)
 
+**Loading a tape:** the case opens, the tape lifts out and slides into the deck.
+
+![Loading a tape](docs/insert.png)
+
 **Lyrics:** click **Lyrics** on the Player or the J-card to read the words. The button only shows up when the song has lyrics.
 
 ![Lyrics](docs/lyrics.png)
 
-**Loading a tape:** the case opens, the tape lifts out and slides into the deck.
+**Headphone plug:** click the plug to pull it out and mute the music. Click it again to plug it back in.
 
-![Insert animation](docs/insert.png)
+![Headphone plug pulled out](docs/unplugged.png)
 
 **Colours:** the Walkman button on the Player cycles through the five colours. The deck at the top of this page is Denim Belt. This one is Red.
 
