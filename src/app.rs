@@ -204,6 +204,8 @@ pub enum Message {
     ToggleAbout,
     OpenRepo,
     ToggleBackdrop,
+    /// Click on the headphone plug: pull it out (music muted) or push it in.
+    TogglePlug,
 }
 
 pub struct App {
@@ -300,6 +302,8 @@ pub struct App {
     wind_resume: bool,
     /// FUNCT latched: FF/REW skip tracks instead of winding.
     skip_mode: bool,
+    /// The headphone plug is pulled out: the music is muted.
+    unplugged: bool,
     /// Brief correct-direction spool burst after a track skip: (dir, secs left).
     skip_anim: Option<(i8, f32)>,
     /// Watches the wind keys for the tape-eating extra.
@@ -898,6 +902,7 @@ impl Application for App {
             wind: None,
             wind_resume: false,
             skip_mode: false,
+            unplugged: false,
             skip_anim: None,
             egg_trigger: tape_eat::Trigger::default(),
             egg: None,
@@ -1631,8 +1636,22 @@ impl App {
 
             Message::SetVolume(v) => {
                 self.volume = v.clamp(0.0, 1.0);
-                let _ = self.audio_tx.send(AudioCmd::Volume(self.volume));
+                // Unplugged, the music stays silent; the new volume applies
+                // when the plug goes back in.
+                if !self.unplugged {
+                    let _ = self.audio_tx.send(AudioCmd::Volume(self.volume));
+                }
                 self.save_state();
+            }
+            Message::TogglePlug => {
+                self.unplugged = !self.unplugged;
+                let (cue, volume) = if self.unplugged {
+                    (audio::Sfx::PlugOut, 0.0)
+                } else {
+                    (audio::Sfx::PlugIn, self.volume)
+                };
+                let _ = self.audio_tx.send(AudioCmd::Sfx(cue));
+                let _ = self.audio_tx.send(AudioCmd::Volume(volume));
             }
 
             Message::WindStart(dir) => {
@@ -2059,6 +2078,8 @@ impl App {
             on_prev: Message::Prev,
             on_toggle_mode: Message::ToggleSkipMode,
             on_label_click: Message::LabelClicked,
+            on_plug: Message::TogglePlug,
+            unplugged: self.unplugged,
             skip_mode: self.skip_mode,
             // The charcoal page shows through the letterbox; covers too.
             fill_letterbox: false,
@@ -2522,7 +2543,7 @@ fn cover_backdrop(bytes: &[u8]) -> Option<cosmic::widget::image::Handle> {
 
 const CASE_T_PNG: &[u8] = include_bytes!("../assets/case_transparent.png");
 /// Empty-deck image + transparent cassette sprite for the load animation.
-pub(crate) const CASSETTE_SPRITE_PNG: &[u8] = include_bytes!("../assets/cassette_sprite.png");
+const CASSETTE_SPRITE_PNG: &[u8] = include_bytes!("../assets/cassette_sprite.png");
 /// Keyed open cassette-case sprite (green removed), for the case-open animation.
 const CASE_OPEN_PNG: &[u8] = include_bytes!("../assets/case_open.png");
 /// Extra bundled room backgrounds — drop PNGs in assets/ and list them here to
@@ -2665,7 +2686,7 @@ impl CloseupFeed {
         let latest = Arc::new(Mutex::new(Vec::new()));
         let out = latest.clone();
         let _ = std::thread::Builder::new().name("tape-eat".into()).spawn(move || {
-            let Some(closeup) = tape_eat::Closeup::new(CASSETTE_SPRITE_PNG, label.as_ref()) else {
+            let Some(closeup) = tape_eat::Closeup::new(label.as_ref()) else {
                 return;
             };
             // The first frame is ready before the cut.
