@@ -169,6 +169,8 @@ pub struct KeyArt {
 pub struct LoadedSkin {
     pub spec: &'static SkinSpec,
     pub body: image::Handle,
+    /// body.png as embedded, for making the chewed-tape version of it.
+    pub body_png: &'static [u8],
     /// Empty deck (open walkman) for the load + case-open animations.
     pub empty: image::Handle,
     pub hub: image::Handle,
@@ -254,6 +256,7 @@ pub fn load_skins() -> Vec<LoadedSkin> {
             LoadedSkin {
                 spec: $spec,
                 body: image::Handle::from_bytes(body_png.to_vec()),
+                body_png,
                 empty: image::Handle::from_bytes(
                     include_bytes!(concat!("../assets/skins/", $dir, "/empty.png")).to_vec(),
                 ),
@@ -269,6 +272,15 @@ pub fn load_skins() -> Vec<LoadedSkin> {
         skin!(&BLACK, "black"),
         skin!(&WHITE, "white"),
     ]
+}
+
+/// The deck after it has eaten the tape (see tape_eat.rs): its photo with
+/// less tape on the reels, and the chewed tape bursting out of the cassette.
+pub struct EatenArt {
+    pub body: image::Handle,
+    pub tangle: image::Handle,
+    /// Where the chewed tape goes, in deck-photo pixels (x0, y0, x1, y1).
+    pub tangle_rect: (f32, f32, f32, f32),
 }
 
 pub fn bedroom_handle() -> image::Handle {
@@ -352,6 +364,14 @@ pub struct CassetteScene<'a, Message> {
     pub interactive: bool,
     /// Hold the Play key down while the tape plays, like a real deck.
     pub play_latched: bool,
+    /// The deck has eaten the tape: draw it chewed (None normally).
+    pub eaten: Option<&'a EatenArt>,
+    /// The chewed pictures, drawn hidden under the deck just before it
+    /// chews (None normally).
+    pub warm: Option<&'a EatenArt>,
+    /// Shift the whole deck by this much (deck-photo pixels): its thunk as
+    /// it chews. (0, 0) normally.
+    pub nudge: (f32, f32),
 }
 
 impl<'a, Message> CassetteScene<'a, Message> {
@@ -553,17 +573,38 @@ impl<'a, Message: Clone> canvas::Program<Message, cosmic::Theme, cosmic::Rendere
             .filter(|&(_, d)| d > 0.0)
             .collect();
 
-        draw_deck(
-            &mut frame,
-            bounds.size(),
-            self.skin,
-            self.label,
-            self.angle_src,
-            self.angle_tk,
-            self.drop,
-            self.fill_letterbox,
-            &down,
-        );
+        // About to chew: put the chewed pictures under the deck, hidden, so
+        // they're loaded and show the moment it crunches.
+        if let (Some(art), None) = (self.warm, self.eaten) {
+            let map = SkinMap::new(spec, bounds.size());
+            let c = map.point(spec.w / 2.0, spec.h / 2.0);
+            frame.draw_image(map.rect((0.0, 0.0, spec.w, spec.h)), canvas::Image::new(art.body.clone()));
+            frame.draw_image(Rectangle::new(c, Size::new(1.0, 1.0)), canvas::Image::new(art.tangle.clone()));
+        }
+        match self.eaten {
+            None => draw_deck(
+                &mut frame,
+                bounds.size(),
+                self.skin,
+                self.label,
+                self.angle_src,
+                self.angle_tk,
+                self.drop,
+                self.fill_letterbox,
+                &down,
+            ),
+            Some(eaten) => {
+                let map = SkinMap::new(spec, bounds.size());
+                if self.fill_letterbox {
+                    frame.fill_rectangle(Point::ORIGIN, bounds.size(), Color::from_rgb(0.09, 0.09, 0.11));
+                }
+                frame.with_save(|f| {
+                    f.translate(Vector::new(self.nudge.0 * map.s, self.nudge.1 * map.s));
+                    draw_deck_with(f, bounds.size(), self.skin, &eaten.body, self.label, self.angle_src, self.angle_tk, self.drop, false, &down);
+                    f.draw_image(map.rect(eaten.tangle_rect), canvas::Image::new(eaten.tangle.clone()));
+                });
+            }
+        }
 
         vec![frame.into_geometry()]
     }
@@ -665,6 +706,23 @@ pub fn draw_deck(
     fill_letterbox: bool,
     pressed: &[(usize, f32)],
 ) {
+    draw_deck_with(frame, size, skin, &skin.body, label, angle_src, angle_tk, drop, fill_letterbox, pressed);
+}
+
+/// `draw_deck` with another photo of the deck in place of the skin's own.
+#[allow(clippy::too_many_arguments)]
+fn draw_deck_with(
+    frame: &mut Frame,
+    size: Size,
+    skin: &LoadedSkin,
+    body: &image::Handle,
+    label: Option<&image::Handle>,
+    angle_src: f32,
+    angle_tk: f32,
+    drop: f32,
+    fill_letterbox: bool,
+    pressed: &[(usize, f32)],
+) {
     let spec = skin.spec;
     let map = SkinMap::new(spec, size);
     let s = map.s;
@@ -681,7 +739,7 @@ pub fn draw_deck(
     // Photographic body, tape seated: frame, keys, and everything outside the
     // window come from here.
     let deck_rect = Rectangle::new(map.point(0.0, 0.0), Size::new(spec.w * s, spec.h * s));
-    frame.draw_image(deck_rect, canvas::Image::new(skin.body.clone()));
+    frame.draw_image(deck_rect, canvas::Image::new(body.clone()));
 
     draw_pressed_keys(frame, &map, skin, pressed);
 
@@ -705,7 +763,7 @@ pub fn draw_deck(
     if visible_bottom > wy0 {
         frame.with_clip(map.rect((wx0, wy0, wx1, visible_bottom)), |f| {
             let shifted = Rectangle::new(map.point(0.0, dy), Size::new(spec.w * s, spec.h * s));
-            f.draw_image(shifted, canvas::Image::new(skin.body.clone()));
+            f.draw_image(shifted, canvas::Image::new(body.clone()));
             draw_tape_parts(f, &map, skin, label, angle_src, angle_tk, dy);
         });
     }
