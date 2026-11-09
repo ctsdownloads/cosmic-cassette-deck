@@ -92,6 +92,11 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="0.0.31" date="2026-11-09">
+      <description>
+        <p>The app store listing shows the current features and screenshots.</p>
+      </description>
+    </release>
     <release version="0.0.30" date="2026-11-08">
       <description>
         <p>Click the headphone plug to pull it out and mute; the tape-eating close-up shows the same tape as the deck.</p>
